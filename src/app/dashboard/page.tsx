@@ -93,7 +93,11 @@ export default function DashboardPage() {
 
   const updateProgress = (id: number, progress: number) => {
     const updated = tasks.map(t => 
-      t.id === id ? { ...t, progress, status: progress === 100 ? 'completed' : progress > 0 ? 'in-progress' : 'pending' } : t
+      t.id === id ? { 
+        ...t, 
+        progress, 
+        status: (progress === 100 ? 'completed' : progress > 0 ? 'in-progress' : 'pending') as Task['status']
+      } : t
     );
     saveTasks(updated);
   };
