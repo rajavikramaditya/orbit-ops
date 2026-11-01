@@ -1,6 +1,7 @@
 'use client';
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Home, Users, Inbox, Film, CheckSquare, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,10 +20,35 @@ export function Nav() {
 
   return (
     <>
+      {/* Mobile top bar with logo */}
+      <header className="md:hidden flex items-center gap-3 border-b border-border px-4 py-3 bg-background sticky top-0 z-40">
+        <Image
+          src="/logo.jpg"
+          alt="Orbit Media"
+          width={36}
+          height={36}
+          className="rounded-full"
+        />
+        <div>
+          <p className="font-semibold text-sm leading-none">Orbit Ops</p>
+          <p className="text-[10px] text-muted-foreground">Orbit Media by Orbitcore</p>
+        </div>
+      </header>
+
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-56 flex-col border-r border-border bg-muted/40 p-4">
-        <div className="mb-8">
-          <h1 className="text-lg font-semibold tracking-tight">Orbit Ops</h1>
-          <p className="text-xs text-muted-foreground">Orbit Media by Orbitcore</p>
+        <div className="mb-8 flex items-center gap-3">
+          <Image
+            src="/logo.jpg"
+            alt="Orbit Media"
+            width={40}
+            height={40}
+            className="rounded-full"
+          />
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight leading-none">Orbit Ops</h1>
+            <p className="text-xs text-muted-foreground">Orbit Media by Orbitcore</p>
+          </div>
         </div>
         <nav className="flex flex-col gap-1">
           {links.map((l) => (
@@ -43,6 +69,7 @@ export function Nav() {
         </nav>
       </aside>
 
+      {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-background md:hidden">
         {links.slice(0, 5).map((l) => (
           <Link
