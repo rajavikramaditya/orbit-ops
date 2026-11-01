@@ -23,7 +23,7 @@ export function Nav() {
       {/* Mobile top bar with logo */}
       <header className="md:hidden flex items-center gap-3 border-b border-border px-4 py-3 bg-background sticky top-0 z-40">
         <Image
-          src="/logo.jpg"
+          src="/logo.svg"
           alt="Orbit Media"
           width={36}
           height={36}
@@ -39,7 +39,7 @@ export function Nav() {
       <aside className="hidden md:flex w-56 flex-col border-r border-border bg-muted/40 p-4">
         <div className="mb-8 flex items-center gap-3">
           <Image
-            src="/logo.jpg"
+            src="/logo.svg"
             alt="Orbit Media"
             width={40}
             height={40}
