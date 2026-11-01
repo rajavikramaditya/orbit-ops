@@ -1,29 +1,30 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { Nav } from "@/components/nav";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
-  title: "Office Task Manager",
-  description: "Multi-login Task & Project Management for Office Team - Admin, Manager, Employee roles",
+  title: "Orbit Ops — Orbit Media by Orbitcore",
+  description: "Internal operations for Orbit Media. What must we do today?",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-gray-50 dark:bg-gray-900">{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <div className="flex min-h-screen flex-col md:flex-row">
+          <Nav />
+          <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">{children}</main>
+        </div>
+      </body>
     </html>
   );
 }
