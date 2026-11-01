@@ -1,63 +1,45 @@
-# Office Task Manager
+# Orbit Ops
 
-Multi-login web app for office team - Task & Project Management with roles (Admin, Manager, Employee).
+Internal operations web app for **Orbit Media by Orbitcore**.
 
-## Features
+> The single question the home screen must answer in 5 seconds: **What must we do today, and which client is falling behind?**
 
-- **Multi-login**: Different accounts for team members
-- **Roles**:
-  - **Admin**: Full access, create tasks, see all
-  - **Manager**: Create & assign tasks, see all
-  - **Employee**: See only assigned tasks, update progress
-- Task assignment with deadlines
-- Progress tracking (0-100%)
-- Status: Pending / In Progress / Completed
-- Dashboard with stats
+## Phase 1 (this version)
 
-## Demo Accounts
+- Today screen with priority list, health colours, cold clients
+- Clients list with progress bars, last activity, health
+- Navigation (mobile bottom bar + desktop sidebar)
+- Placeholder pages for Requests, Content, Tasks, Settings
+- Mobile-first, black/white design, Inter font
+- Ready for Supabase (schema coming next)
 
-| Role     | Email                  | Password   |
-|----------|------------------------|------------|
-| Admin    | admin@office.com      | admin123  |
-| Manager  | manager@office.com    | manager123|
-| Employee | employee@office.com   | emp123    |
-| Employee2| employee2@office.com  | emp123    |
+## Tech
 
-## Tech Stack (Recommended 2026)
+- Next.js 16 + React 19 + TypeScript
+- Tailwind CSS v4
+- Lucide icons
+- Deployed on Vercel
 
-- **Frontend**: Next.js 16 + React 19 + TypeScript + Tailwind CSS
-- **Auth (Production)**: Supabase Auth or Clerk (easy multi-user + roles)
-- **Database (Production)**: Supabase (PostgreSQL) or PlanetScale
-- **Hosting**: Vercel
-
-This prototype uses localStorage for demo so you can test multi-login in browser.
-
-## How to Run
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+## Assumptions
 
-## Next Steps for Production
+- Demo data is hardcoded for now (real clients from brief/website).
+- Auth and roles will come with Supabase in the next phase.
+- Money, invoices, shoot planner, sales pipeline are Phase 2.
+- Hindi/Hinglish support is planned (Unicode ready).
 
-1. Replace localStorage with Supabase:
-   - User authentication
-   - Real database for tasks
-   - Row Level Security for roles
+## Next
 
-2. Add more features:
-   - Team management
-   - Notifications
-   - File attachments
-   - Reports
+1. Supabase project + schema + RLS
+2. Real auth (invite-only)
+3. Content pipeline Kanban
+4. Requests inbox with triage
+5. Activity log + automatic last activity
 
-3. Deploy on Vercel
-
-## Hindi Summary
-
-Yeh Office team ke liye Task Management web app hai jisme multiple logins hain. Admin aur Manager tasks create kar sakte hain, Employee apne tasks update kar sakta hai.
-
-Demo accounts se login karke test karein.
+Built from the Orbit Ops Master Brief.
