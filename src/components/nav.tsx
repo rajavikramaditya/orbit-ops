@@ -21,8 +21,8 @@ export function Nav() {
   return (
     <>
       <header className="md:hidden flex items-center gap-3 border-b border-border px-4 py-3 bg-background sticky top-0 z-40">
-        <div className="h-9 w-9 flex items-center justify-center shrink-0">
-          <Image src="/logo.svg" alt="Orbit Media" width={32} height={32} className="object-contain" priority />
+        <div className="h-10 w-10 flex items-center justify-center shrink-0">
+          <Image src="/logo.svg" alt="Orbit Media" width={36} height={36} className="object-contain" priority />
         </div>
         <div className="min-w-0">
           <p className="font-semibold text-sm leading-none truncate">Orbit Ops</p>
@@ -32,8 +32,8 @@ export function Nav() {
 
       <aside className="hidden md:flex w-56 flex-col border-r border-border bg-muted/40 p-4">
         <div className="mb-8 flex items-center gap-3">
-          <div className="h-10 w-10 flex items-center justify-center">
-            <Image src="/logo.svg" alt="Orbit Media" width={36} height={36} className="object-contain" priority />
+          <div className="h-11 w-11 flex items-center justify-center">
+            <Image src="/logo.svg" alt="Orbit Media" width={40} height={40} className="object-contain" priority />
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight leading-none">Orbit Ops</h1>
