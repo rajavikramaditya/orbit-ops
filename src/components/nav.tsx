@@ -27,7 +27,7 @@ export function Nav() {
           alt="Orbit Media"
           width={36}
           height={36}
-          className="rounded-full"
+          className="object-contain"
         />
         <div>
           <p className="font-semibold text-sm leading-none">Orbit Ops</p>
@@ -43,7 +43,7 @@ export function Nav() {
             alt="Orbit Media"
             width={40}
             height={40}
-            className="rounded-full"
+            className="object-contain"
           />
           <div>
             <h1 className="text-lg font-semibold tracking-tight leading-none">Orbit Ops</h1>
