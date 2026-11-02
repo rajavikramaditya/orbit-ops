@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-devanagari: var(--font-noto-devanagari), "Noto Sans Devanagari", sans-serif;
+
+  --color-ink: #0a0a0a;
+  --color-paper: #ffffff;
+  --color-muted: #6b7280;
+  --color-line: #e5e7eb;
+  --color-surface: #f7f7f8;
+
+  --color-ok: #16a34a;
+  --color-warn: #d97706;
+  --color-bad: #dc2626;
+
+  --radius-xl: 1rem;
+}
+
+:root {
+  --bg: #ffffff;
+  --bg-elev: #ffffff;
+  --bg-soft: #f6f6f7;
+  --fg: #0a0a0a;
+  --fg-muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #0a0a0a;
+  --accent-fg: #ffffff;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b0b0c;
+  --bg-elev: #141416;
+  --bg-soft: #1a1a1d;
+  --fg: #f5f5f5;
+  --fg-muted: #9ca3af;
+  --line: #27272a;
+  --accent: #f5f5f5;
+  --accent-fg: #0a0a0a;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans), var(--font-devanagari);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:lang(hi),
+.devanagari {
+  font-family: var(--font-devanagari), var(--font-sans);
+}
+
+* {
+  border-color: var(--line);
+}
+
+::selection {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.soft {
+  background: var(--bg-soft);
+}
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  min-height: 44px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+}
+.btn-ghost:hover {
+  background: var(--bg-soft);
+}
+.btn-sm {
+  @apply px-3 py-1.5 text-xs rounded-lg;
+  min-height: 36px;
+}
+
+.input {
+  @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  min-height: 44px;
+}
+.input:focus {
+  border-color: var(--fg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 10%, transparent);
+}
+.input::placeholder {
+  color: var(--fg-muted);
+}
+textarea.input {
+  min-height: 88px;
+}
+
+.label {
+  @apply block text-xs font-medium mb-1.5 uppercase tracking-wide;
+  color: var(--fg-muted);
+}
+
+.pill {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.pill-green {
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+  border-color: color-mix(in srgb, #16a34a 30%, transparent);
+  color: #15803d;
+}
+.dark .pill-green {
+  color: #4ade80;
+}
+.pill-amber {
+  background: color-mix(in srgb, #d97706 14%, transparent);
+  border-color: color-mix(in srgb, #d97706 35%, transparent);
+  color: #b45309;
+}
+.dark .pill-amber {
+  color: #fbbf24;
+}
+.pill-red {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  border-color: color-mix(in srgb, #dc2626 35%, transparent);
+  color: #b91c1c;
+}
+.dark .pill-red {
+  color: #f87171;
+}
+
+.row-hover:hover {
+  background: var(--bg-soft);
+}
+
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.kanban-col {
+  min-width: 270px;
+  width: 270px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .print-page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
