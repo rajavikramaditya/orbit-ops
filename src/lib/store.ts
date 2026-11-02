@@ -1,0 +1,94 @@
+'use client';
+
+export type Health = 'green' | 'amber' | 'red';
+export type Role = 'owner' | 'manager' | 'team';
+
+export interface Client {
+  id: string;
+  name: string;
+  status: 'Onboarding' | 'Active' | 'Paused' | 'Churned';
+  package: string;
+  videosPromised: number;
+  videosPosted: number;
+  lastActivityAt: string;
+  health: Health;
+  owner: string;
+  industry: string;
+  city: string;
+  notes: string;
+  onboardedOn: string;
+}
+
+export interface Task {
+  id: string;
+  clientId?: string;
+  title: string;
+  assignee: string;
+  priority: 'P1' | 'P2' | 'P3';
+  due: string;
+  status: 'todo' | 'in-progress' | 'waiting' | 'done';
+  createdAt: string;
+}
+
+export interface RequestItem {
+  id: string;
+  clientId: string;
+  body: string;
+  channel: 'call' | 'whatsapp' | 'meeting' | 'other';
+  receivedAt: string;
+  loggedBy: string;
+  status: 'new' | 'triaged' | 'in-progress' | 'done';
+  priority?: 'P1' | 'P2' | 'P3';
+  assignee?: string;
+  due?: string;
+}
+
+export interface ContentItem {
+  id: string;
+  clientId: string;
+  title: string;
+  stage: 'idea' | 'planned' | 'shot' | 'editing' | 'ready' | 'approved' | 'scheduled' | 'posted';
+  assignee: string;
+  due?: string;
+  createdAt: string;
+}
+
+const KEY = 'orbit-ops-data';
+
+const seed = () => ({
+  clients: [
+    { id: '1', name: 'Mahindra Dhruvtara', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 7, lastActivityAt: new Date(Date.now() - 2 * 86400000).toISOString(), health: 'amber' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Orai', notes: 'High-rated dealership. Focus on reels and Google reviews.', onboardedOn: '2025-08-12' },
+    { id: '2', name: 'Sparkle Makeover', status: 'Active' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 5, lastActivityAt: new Date(Date.now() - 1 * 86400000).toISOString(), health: 'green' as Health, owner: 'Tanvi', industry: 'Beauty', city: 'Orai', notes: 'Largest beauty account in Orai. Bridal content performs well.', onboardedOn: '2025-06-01' },
+    { id: '3', name: 'Havells Galaxy', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 4, lastActivityAt: new Date(Date.now() - 5 * 86400000).toISOString(), health: 'red' as Health, owner: 'Vikas Rathore', industry: 'Electricals', city: 'Orai', notes: 'Behind schedule. Need more product videos this week.', onboardedOn: '2025-07-20' },
+    { id: '4', name: 'Hindustan Motors', status: 'Onboarding' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 0, lastActivityAt: new Date().toISOString(), health: 'green' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Konch', notes: 'New client. First shoot scheduled tomorrow.', onboardedOn: '2026-10-28' },
+  ] as Client[],
+  tasks: [] as Task[],
+  requests: [] as RequestItem[],
+  content: [] as ContentItem[],
+});
+
+export function loadData() {
+  if (typeof window === 'undefined') return seed();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) { const s = seed(); localStorage.setItem(KEY, JSON.stringify(s)); return s; }
+    return JSON.parse(raw);
+  } catch { return seed(); }
+}
+
+export function saveData(data: ReturnType<typeof seed>) {
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+export function touchClient(clientId: string) {
+  const data = loadData();
+  const c = data.clients.find((x: Client) => x.id === clientId);
+  if (c) {
+    c.lastActivityAt = new Date().toISOString();
+    const days = (Date.now() - new Date(c.lastActivityAt).getTime()) / 86400000;
+    if (days >= 7 || c.videosPosted < c.videosPromised * 0.4) c.health = 'red';
+    else if (days >= 4) c.health = 'amber';
+    else c.health = 'green';
+    saveData(data);
+  }
+}
