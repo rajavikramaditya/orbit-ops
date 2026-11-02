@@ -216,9 +216,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function Brand({ compact }: { compact?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-2.5 px-1">
-      <span className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold tracking-tight" style={{ background: "var(--fg)", color: "var(--bg)" }}>
-        OM
-      </span>
+      <span
+        aria-hidden
+        className="h-8 w-8 shrink-0"
+        style={{ background: "var(--fg)", WebkitMaskImage: "url(/logo.svg)", maskImage: "url(/logo.svg)", WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center" }}
+      />
       {!compact && (
         <span className="leading-tight">
           <span className="block text-sm font-semibold">Orbit Ops</span>
