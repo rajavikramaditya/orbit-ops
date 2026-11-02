@@ -37,7 +37,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Mobile first tap targets */
 button, a, [role="button"] {
   min-height: 44px;
   min-width: 44px;
+}
+
+/* Safe area for iPhone bottom nav */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent text overflow on mobile */
+.truncate-mobile {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
