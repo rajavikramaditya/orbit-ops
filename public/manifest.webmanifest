@@ -1,0 +1,14 @@
+{
+  "name": "Orbit Ops — Orbit Media by Orbitcore",
+  "short_name": "Orbit Ops",
+  "description": "Internal operations tracker for Orbit Media by Orbitcore",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
