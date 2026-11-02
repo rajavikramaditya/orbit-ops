@@ -22,7 +22,7 @@ export function Nav() {
     <>
       {/* Mobile top bar with logo */}
       <header className="md:hidden flex items-center gap-3 border-b border-border px-4 py-3 bg-background sticky top-0 z-40">
-        <div className="h-9 w-9 flex items-center justify-center">
+        <div className="h-9 w-9 flex items-center justify-center shrink-0">
           <Image
             src="/logo.svg"
             alt="Orbit Media"
@@ -32,9 +32,9 @@ export function Nav() {
             priority
           />
         </div>
-        <div>
-          <p className="font-semibold text-sm leading-none">Orbit Ops</p>
-          <p className="text-[10px] text-muted-foreground">Orbit Media by Orbitcore</p>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm leading-none truncate">Orbit Ops</p>
+          <p className="text-[10px] text-muted-foreground truncate">Orbit Media by Orbitcore</p>
         </div>
       </header>
 
@@ -76,17 +76,17 @@ export function Nav() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-background md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-background/95 backdrop-blur md:hidden safe-area-inset-bottom">
         {links.slice(0, 5).map((l) => (
           <Link
             key={l.href}
             href={l.href}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center py-2 text-[10px]",
+              "flex flex-1 flex-col items-center justify-center py-3 text-[11px] min-h-[60px]",
               pathname === l.href ? "text-foreground font-medium" : "text-muted-foreground"
             )}
           >
-            <l.icon className="h-5 w-5" />
+            <l.icon className="h-5 w-5 mb-0.5" />
             {l.label}
           </Link>
         ))}
