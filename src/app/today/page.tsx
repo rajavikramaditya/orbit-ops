@@ -54,14 +54,14 @@ export default function TodayPage() {
         ) : (
           <div className="space-y-2">
             {tasks.map(t => (
-              <div key={t.id} className="flex items-start justify-between gap-3 rounded-xl border p-4">
-                <div>
-                  <p className="font-medium">{t.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{t.assignee} · Due {t.due} · {t.priority}</p>
+              <div key={t.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 rounded-xl border p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium break-words">{t.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1 break-words">{t.assignee} · Due {t.due} · {t.priority}</p>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <button onClick={() => markDone(t.id)} className="text-xs px-3 py-1 rounded-lg bg-green text-white">Done</button>
-                  <button onClick={() => snooze(t.id)} className="text-xs px-3 py-1 rounded-lg border">Snooze</button>
+                <div className="flex gap-2 sm:flex-col sm:gap-1 shrink-0">
+                  <button onClick={() => markDone(t.id)} className="flex-1 sm:flex-none text-sm px-4 py-2 rounded-lg bg-green text-white">Done</button>
+                  <button onClick={() => snooze(t.id)} className="flex-1 sm:flex-none text-sm px-4 py-2 rounded-lg border">Snooze</button>
                 </div>
               </div>
             ))}
