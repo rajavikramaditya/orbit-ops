@@ -17,6 +17,7 @@ export interface Client {
   city: string;
   notes: string;
   onboardedOn: string;
+  logo?: string;
 }
 
 export interface Task {
@@ -57,10 +58,12 @@ const KEY = 'orbit-ops-data';
 
 const seed = () => ({
   clients: [
-    { id: '1', name: 'Mahindra Dhruvtara', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 7, lastActivityAt: new Date(Date.now() - 2 * 86400000).toISOString(), health: 'amber' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Orai', notes: 'High-rated dealership. Focus on reels and Google reviews.', onboardedOn: '2025-08-12' },
-    { id: '2', name: 'Sparkle Makeover', status: 'Active' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 5, lastActivityAt: new Date(Date.now() - 1 * 86400000).toISOString(), health: 'green' as Health, owner: 'Tanvi', industry: 'Beauty', city: 'Orai', notes: 'Largest beauty account in Orai. Bridal content performs well.', onboardedOn: '2025-06-01' },
-    { id: '3', name: 'Havells Galaxy', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 4, lastActivityAt: new Date(Date.now() - 5 * 86400000).toISOString(), health: 'red' as Health, owner: 'Vikas Rathore', industry: 'Electricals', city: 'Orai', notes: 'Behind schedule. Need more product videos this week.', onboardedOn: '2025-07-20' },
-    { id: '4', name: 'Hindustan Motors', status: 'Onboarding' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 0, lastActivityAt: new Date().toISOString(), health: 'green' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Konch', notes: 'New client. First shoot scheduled tomorrow.', onboardedOn: '2026-10-28' },
+    { id: '1', name: 'Mahindra Dhruvtara', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 7, lastActivityAt: new Date(Date.now() - 2 * 86400000).toISOString(), health: 'amber' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Orai', notes: 'Highest-rated dealership. 4.9 stars from 4000+ reviews.', onboardedOn: '2024-06-15' },
+    { id: '2', name: 'Sparkle Makeover', status: 'Active' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 5, lastActivityAt: new Date(Date.now() - 1 * 86400000).toISOString(), health: 'green' as Health, owner: 'Tanvi', industry: 'Beauty', city: 'Orai', notes: 'Largest beauty account in Orai. 18k+ Instagram followers.', onboardedOn: '2024-03-10' },
+    { id: '3', name: 'Havells Galaxy', status: 'Active' as const, package: '12 videos / month', videosPromised: 12, videosPosted: 4, lastActivityAt: new Date(Date.now() - 5 * 86400000).toISOString(), health: 'red' as Health, owner: 'Vikas Rathore', industry: 'Electricals', city: 'Orai', notes: 'Purwar Electricals. Building Google reviews.', onboardedOn: '2025-01-20' },
+    { id: '4', name: 'Hindustan Motors', status: 'Onboarding' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 0, lastActivityAt: new Date().toISOString(), health: 'green' as Health, owner: 'Ram Soni', industry: 'Automotive', city: 'Konch', notes: 'E-rickshaw dealer. First shoot scheduled.', onboardedOn: '2026-10-28' },
+    { id: '5', name: 'Royal Enfield Dhruv Tara', status: 'Active' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 6, lastActivityAt: new Date(Date.now() - 3 * 86400000).toISOString(), health: 'green' as Health, owner: 'Shahil', industry: 'Automotive', city: 'Orai', notes: 'Launch coverage and delivery videos.', onboardedOn: '2024-08-01' },
+    { id: '6', name: 'Kidzee Orai', status: 'Active' as const, package: '8 videos / month', videosPromised: 8, videosPosted: 3, lastActivityAt: new Date(Date.now() - 4 * 86400000).toISOString(), health: 'amber' as Health, owner: 'Tanvi', industry: 'Education', city: 'Orai', notes: 'Admissions campaign seasonal.', onboardedOn: '2025-02-14' },
   ] as Client[],
   tasks: [] as Task[],
   requests: [] as RequestItem[],
