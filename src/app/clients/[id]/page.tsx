@@ -14,6 +14,8 @@ export default function ClientDetailPage() {
   const [form, setForm] = useState<Partial<Client>>({});
   const [showPayment, setShowPayment] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<string | null>(null);
+  const [editingExpense, setEditingExpense] = useState<string | null>(null);
   const [payForm, setPayForm] = useState({ amount: '', date: '', note: '' });
   const [expForm, setExpForm] = useState({ amount: '', date: '', category: 'Ads', note: '' });
 
@@ -80,6 +82,30 @@ export default function ClientDetailPage() {
     }
   };
 
+  const updatePayment = (pid: string, updates: Partial<Payment>) => {
+    const data = loadData();
+    const c = data.clients.find((x: Client) => x.id === id);
+    if (c && c.payments) {
+      const p = c.payments.find(x => x.id === pid);
+      if (p) Object.assign(p, updates);
+      saveData(data);
+      setClient({ ...c });
+      setEditingPayment(null);
+    }
+  };
+
+  const updateExpense = (eid: string, updates: Partial<Expense>) => {
+    const data = loadData();
+    const c = data.clients.find((x: Client) => x.id === id);
+    if (c && c.expenses) {
+      const e = c.expenses.find(x => x.id === eid);
+      if (e) Object.assign(e, updates);
+      saveData(data);
+      setClient({ ...c });
+      setEditingExpense(null);
+    }
+  };
+
   if (!client) return <div className="max-w-3xl mx-auto">Loading…</div>;
 
   const totalReceived = (client.payments || []).reduce((s, p) => s + p.amount, 0);
@@ -103,11 +129,7 @@ export default function ClientDetailPage() {
 
       <div className="flex flex-wrap gap-2">
         {(['Onboarding', 'Active', 'Paused', 'Churned'] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setStatus(s)}
-            className={`text-xs px-3 py-1 rounded-full border ${client.status === s ? 'bg-foreground text-background' : ''}`}
-          >
+          <button key={s} onClick={() => setStatus(s)} className={`text-xs px-3 py-1 rounded-full border ${client.status === s ? 'bg-foreground text-background' : ''}`}>
             {s}
           </button>
         ))}
@@ -145,7 +167,6 @@ export default function ClientDetailPage() {
               <p className="font-medium mt-1">{client.monthlyFee ? `₹${client.monthlyFee.toLocaleString('en-IN')}` : '—'}</p>
             </div>
           </div>
-
           <section className="rounded-lg border p-4">
             <h2 className="text-sm font-medium mb-2">Notes</h2>
             <p className="text-sm text-muted-foreground">{client.notes || 'No notes yet.'}</p>
@@ -156,9 +177,7 @@ export default function ClientDetailPage() {
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium">Payments received (Admin)</h2>
-          <button onClick={() => setShowPayment(!showPayment)} className="text-xs px-3 py-1 border rounded">
-            {showPayment ? 'Cancel' : '+ Payment'}
-          </button>
+          <button onClick={() => setShowPayment(!showPayment)} className="text-xs px-3 py-1 border rounded">{showPayment ? 'Cancel' : '+ Payment'}</button>
         </div>
         <p className="text-xs text-muted-foreground mb-3">Total received: ₹{totalReceived.toLocaleString('en-IN')}</p>
         {showPayment && (
@@ -167,16 +186,29 @@ export default function ClientDetailPage() {
               <input required type="number" placeholder="Amount (₹)" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
               <input required type="date" value={payForm.date} onChange={e => setPayForm({ ...payForm, date: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
             </div>
-            <input placeholder="Note (optional)" value={payForm.note} onChange={e => setPayForm({ ...payForm, note: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Add payment</button>
+            <input placeholder="Note" value={payForm.note} onChange={e => setPayForm({ ...payForm, note: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Add</button>
           </form>
         )}
         <div className="space-y-2">
           {(client.payments || []).length === 0 && <p className="text-xs text-muted-foreground">No payments yet.</p>}
           {(client.payments || []).map(p => (
-            <div key={p.id} className="flex justify-between text-sm border-b pb-1">
-              <span>₹{p.amount.toLocaleString('en-IN')} · {p.note || 'Payment'}</span>
-              <span className="text-muted-foreground">{p.date}</span>
+            <div key={p.id} className="flex items-center justify-between text-sm border-b pb-1">
+              {editingPayment === p.id ? (
+                <div className="flex gap-2 flex-1">
+                  <input type="number" defaultValue={p.amount} onBlur={e => updatePayment(p.id, { amount: +e.target.value })} className="w-24 border rounded px-2 py-1 text-sm" />
+                  <input type="date" defaultValue={p.date} onBlur={e => updatePayment(p.id, { date: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                  <input defaultValue={p.note || ''} onBlur={e => updatePayment(p.id, { note: e.target.value })} className="flex-1 border rounded px-2 py-1 text-sm" />
+                </div>
+              ) : (
+                <>
+                  <span>₹{p.amount.toLocaleString('en-IN')} · {p.note || 'Payment'}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{p.date}</span>
+                    <button onClick={() => setEditingPayment(p.id)} className="text-xs underline">Edit</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -185,9 +217,7 @@ export default function ClientDetailPage() {
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium">Expenses (Admin)</h2>
-          <button onClick={() => setShowExpense(!showExpense)} className="text-xs px-3 py-1 border rounded">
-            {showExpense ? 'Cancel' : '+ Expense'}
-          </button>
+          <button onClick={() => setShowExpense(!showExpense)} className="text-xs px-3 py-1 border rounded">{showExpense ? 'Cancel' : '+ Expense'}</button>
         </div>
         <p className="text-xs text-muted-foreground mb-3">Total spent: ₹{totalSpent.toLocaleString('en-IN')}</p>
         {showExpense && (
@@ -197,22 +227,31 @@ export default function ClientDetailPage() {
               <input required type="date" value={expForm.date} onChange={e => setExpForm({ ...expForm, date: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
             </div>
             <select value={expForm.category} onChange={e => setExpForm({ ...expForm, category: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm">
-              <option>Ads</option>
-              <option>Shoot</option>
-              <option>Editing</option>
-              <option>Travel</option>
-              <option>Other</option>
+              <option>Ads</option><option>Shoot</option><option>Editing</option><option>Travel</option><option>Other</option>
             </select>
-            <input placeholder="Note (optional)" value={expForm.note} onChange={e => setExpForm({ ...expForm, note: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Add expense</button>
+            <input placeholder="Note" value={expForm.note} onChange={e => setExpForm({ ...expForm, note: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Add</button>
           </form>
         )}
         <div className="space-y-2">
           {(client.expenses || []).length === 0 && <p className="text-xs text-muted-foreground">No expenses yet.</p>}
           {(client.expenses || []).map(e => (
-            <div key={e.id} className="flex justify-between text-sm border-b pb-1">
-              <span>₹{e.amount.toLocaleString('en-IN')} · {e.category} {e.note ? `· ${e.note}` : ''}</span>
-              <span className="text-muted-foreground">{e.date}</span>
+            <div key={e.id} className="flex items-center justify-between text-sm border-b pb-1">
+              {editingExpense === e.id ? (
+                <div className="flex gap-2 flex-1">
+                  <input type="number" defaultValue={e.amount} onBlur={e2 => updateExpense(e.id, { amount: +e2.target.value })} className="w-24 border rounded px-2 py-1 text-sm" />
+                  <input type="date" defaultValue={e.date} onBlur={e2 => updateExpense(e.id, { date: e2.target.value })} className="border rounded px-2 py-1 text-sm" />
+                  <input defaultValue={e.note || ''} onBlur={e2 => updateExpense(e.id, { note: e2.target.value })} className="flex-1 border rounded px-2 py-1 text-sm" />
+                </div>
+              ) : (
+                <>
+                  <span>₹{e.amount.toLocaleString('en-IN')} · {e.category} {e.note ? `· ${e.note}` : ''}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{e.date}</span>
+                    <button onClick={() => setEditingExpense(e.id)} className="text-xs underline">Edit</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
