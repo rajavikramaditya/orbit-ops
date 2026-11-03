@@ -78,9 +78,20 @@ export default function ClientsPage() {
                 {c.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-foreground' : 'bg-muted-foreground'}`} />
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-medium truncate">{c.name}</h3>
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                      c.health === 'red'
+                        ? 'bg-red-100 text-red-700'
+                        : c.health === 'amber'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
+                    {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
+                  </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
