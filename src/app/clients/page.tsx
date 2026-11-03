@@ -51,7 +51,7 @@ export default function ClientsPage() {
       </header>
 
       {showForm && (
-        <form onSubmit={addClient} className="rounded-xl border p-4 space-y-3">
+        <form onSubmit={addClient} className="rounded-lg border p-4 space-y-3">
           <input required placeholder="Client name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <select value={form.package} onChange={e => setForm({ ...form, package: e.target.value, videosPromised: e.target.value.includes('12') ? 12 : 8 })} className="border rounded-lg px-3 py-2">
@@ -66,33 +66,32 @@ export default function ClientsPage() {
             <input placeholder="City" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="border rounded-lg px-3 py-2" />
           </div>
           <textarea placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2" rows={2} />
-          <button type="submit" className="bg-green text-white px-4 py-2 rounded-lg text-sm">Save Client</button>
+          <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Save Client</button>
         </form>
       )}
 
       <div className="space-y-3">
         {clients.map((c) => (
-          <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-xl border bg-background p-4 shadow-sm hover:shadow active:bg-muted/50 transition-all">
+          <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border bg-background p-4 hover:bg-muted/40 transition-colors">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${c.health === 'red' ? 'bg-red' : c.health === 'amber' ? 'bg-amber' : 'bg-green'}`} />
+                  <span className={`h-2 w-2 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
                   <h3 className="font-medium truncate">{c.name}</h3>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1 truncate">{c.package} · {c.owner}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="font-medium">{c.videosPosted} of {c.videosPromised}</span>
-                  <span className="text-muted-foreground">posted</span>
-                  <span className="text-muted-foreground">·</span>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>{c.videosPosted} of {c.videosPromised} posted</span>
+                  <span>·</span>
                   <span>Last {new Date(c.lastActivityAt).toLocaleDateString('en-IN')}</span>
                 </div>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${c.status === 'Active' ? 'bg-green/10 text-green' : c.status === 'Onboarding' ? 'bg-amber/10 text-amber' : 'border'}`}>
+              <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground shrink-0">
                 {c.status}
               </span>
             </div>
-            <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-              <div className={`h-full ${c.health === 'red' ? 'bg-red' : c.health === 'amber' ? 'bg-amber' : 'bg-green'}`} style={{ width: `${(c.videosPosted / c.videosPromised) * 100}%` }} />
+            <div className="mt-3 h-1 w-full rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-foreground/70" style={{ width: `${(c.videosPosted / c.videosPromised) * 100}%` }} />
             </div>
           </Link>
         ))}
