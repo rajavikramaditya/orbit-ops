@@ -71,44 +71,48 @@ export default function ClientsPage() {
       )}
 
       <div className="space-y-3">
-        {clients.map((c) => (
-          <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border bg-background p-4 hover:bg-muted/40 transition-colors">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
-                {c.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-medium truncate">{c.name}</h3>
-                  <span
-                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      c.health === 'red'
-                        ? 'bg-red-100 text-red-700'
-                        : c.health === 'amber'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
-                    {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
-                  </span>
+        {clients.map((c) => {
+          const received = (c.payments || []).reduce((s, p) => s + p.amount, 0);
+          const spent = (c.expenses || []).reduce((s, e) => s + e.amount, 0);
+          return (
+            <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border bg-background p-4 hover:bg-muted/40 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                  {c.name.slice(0, 2).toUpperCase()}
                 </div>
-                <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>{c.videosPosted}/{c.videosPromised} posted</span>
-                  <span>·</span>
-                  <span>Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-medium truncate">{c.name}</h3>
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        c.health === 'red' ? 'bg-red-100 text-red-700' : c.health === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
+                      {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>{c.videosPosted}/{c.videosPromised} posted</span>
+                    <span>·</span>
+                    <span>Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                  </div>
+                  <div className="mt-1 flex gap-4 text-xs">
+                    <span className="text-green-700">Received ₹{received.toLocaleString('en-IN')}</span>
+                    <span className="text-red-700">Spent ₹{spent.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
+                <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground shrink-0">
+                  {c.status}
+                </span>
               </div>
-              <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground shrink-0">
-                {c.status}
-              </span>
-            </div>
-            <div className="mt-3 h-0.5 w-full rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-foreground/40" style={{ width: `${(c.videosPosted / c.videosPromised) * 100}%` }} />
-            </div>
-          </Link>
-        ))}
+              <div className="mt-3 h-0.5 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-foreground/40" style={{ width: `${(c.videosPosted / c.videosPromised) * 100}%` }} />
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
