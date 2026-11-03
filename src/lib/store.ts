@@ -54,7 +54,7 @@ export interface ContentItem {
   createdAt: string;
 }
 
-const KEY = 'orbit-ops-data';
+const KEY = 'orbit-ops-data-v2';
 
 const seed = () => ({
   clients: [
