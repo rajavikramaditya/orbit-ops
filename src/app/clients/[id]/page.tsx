@@ -12,6 +12,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Client>>({});
+  const [pendingStatus, setPendingStatus] = useState<Client['status'] | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
@@ -52,6 +53,12 @@ export default function ClientDetailPage() {
       saveData(data);
       setClient({ ...c });
     }
+  };
+
+  const applyStatus = () => {
+    if (!pendingStatus) return;
+    setStatus(pendingStatus);
+    setPendingStatus(null);
   };
 
   const addPayment = (e: React.FormEvent) => {
@@ -130,11 +137,14 @@ export default function ClientDetailPage() {
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Move to</span>
-        <select value={client.status} onChange={e => setStatus(e.target.value as Client['status'])} className="text-sm border rounded px-2 py-1">
+        <select value={pendingStatus || client.status} onChange={e => setPendingStatus(e.target.value as Client['status'])} className="text-sm border rounded px-2 py-1">
           <option value="Active">Active</option>
           <option value="Paused">Paused</option>
           <option value="Churned">Churned (move to bin)</option>
         </select>
+        {pendingStatus && pendingStatus !== client.status && (
+          <button onClick={applyStatus} className="text-xs px-3 py-1 bg-foreground text-background rounded">Apply</button>
+        )}
       </div>
 
       {editing ? (
@@ -198,10 +208,17 @@ export default function ClientDetailPage() {
           {(client.payments || []).map(p => (
             <div key={p.id} className="flex items-center justify-between text-sm border-b pb-1">
               {editingPayment === p.id ? (
-                <div className="flex gap-2 flex-1">
-                  <input type="number" defaultValue={p.amount} onBlur={e => updatePayment(p.id, { amount: +e.target.value })} className="w-24 border rounded px-2 py-1 text-sm" />
-                  <input type="date" defaultValue={p.date} onBlur={e => updatePayment(p.id, { date: e.target.value })} className="border rounded px-2 py-1 text-sm" />
-                  <input defaultValue={p.note || ''} onBlur={e => updatePayment(p.id, { note: e.target.value })} className="flex-1 border rounded px-2 py-1 text-sm" />
+                <div className="flex gap-2 flex-1 items-center">
+                  <input type="number" defaultValue={p.amount} id={`pamt-${p.id}`} className="w-24 border rounded px-2 py-1 text-sm" />
+                  <input type="date" defaultValue={p.date} id={`pdate-${p.id}`} className="border rounded px-2 py-1 text-sm" />
+                  <input defaultValue={p.note || ''} id={`pnote-${p.id}`} className="flex-1 border rounded px-2 py-1 text-sm" />
+                  <button onClick={() => {
+                    const amt = (document.getElementById(`pamt-${p.id}`) as HTMLInputElement).value;
+                    const dt = (document.getElementById(`pdate-${p.id}`) as HTMLInputElement).value;
+                    const nt = (document.getElementById(`pnote-${p.id}`) as HTMLInputElement).value;
+                    updatePayment(p.id, { amount: +amt, date: dt, note: nt });
+                  }} className="text-xs px-2 py-1 bg-foreground text-background rounded">Save</button>
+                  <button onClick={() => setEditingPayment(null)} className="text-xs underline">Cancel</button>
                 </div>
               ) : (
                 <>
@@ -241,10 +258,17 @@ export default function ClientDetailPage() {
           {(client.expenses || []).map(e => (
             <div key={e.id} className="flex items-center justify-between text-sm border-b pb-1">
               {editingExpense === e.id ? (
-                <div className="flex gap-2 flex-1">
-                  <input type="number" defaultValue={e.amount} onBlur={e2 => updateExpense(e.id, { amount: +e2.target.value })} className="w-24 border rounded px-2 py-1 text-sm" />
-                  <input type="date" defaultValue={e.date} onBlur={e2 => updateExpense(e.id, { date: e2.target.value })} className="border rounded px-2 py-1 text-sm" />
-                  <input defaultValue={e.note || ''} onBlur={e2 => updateExpense(e.id, { note: e2.target.value })} className="flex-1 border rounded px-2 py-1 text-sm" />
+                <div className="flex gap-2 flex-1 items-center">
+                  <input type="number" defaultValue={e.amount} id={`eamt-${e.id}`} className="w-24 border rounded px-2 py-1 text-sm" />
+                  <input type="date" defaultValue={e.date} id={`edate-${e.id}`} className="border rounded px-2 py-1 text-sm" />
+                  <input defaultValue={e.note || ''} id={`enote-${e.id}`} className="flex-1 border rounded px-2 py-1 text-sm" />
+                  <button onClick={() => {
+                    const amt = (document.getElementById(`eamt-${e.id}`) as HTMLInputElement).value;
+                    const dt = (document.getElementById(`edate-${e.id}`) as HTMLInputElement).value;
+                    const nt = (document.getElementById(`enote-${e.id}`) as HTMLInputElement).value;
+                    updateExpense(e.id, { amount: +amt, date: dt, note: nt });
+                  }} className="text-xs px-2 py-1 bg-foreground text-background rounded">Save</button>
+                  <button onClick={() => setEditingExpense(null)} className="text-xs underline">Cancel</button>
                 </div>
               ) : (
                 <>
