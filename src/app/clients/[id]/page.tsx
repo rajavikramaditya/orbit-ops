@@ -115,8 +115,8 @@ export default function ClientDetailPage() {
 
   if (!client) return <div className="max-w-3xl mx-auto">Loading…</div>;
 
-  const totalReceived = (client.payments || []).reduce((s, p) => s + p.amount, 0);
-  const totalSpent = (client.expenses || []).reduce((s, e) => s + e.amount, 0);
+  const totalReceived = (client.payments || []).reduce((s: number, p: Payment) => s + p.amount, 0);
+  const totalSpent = (client.expenses || []).reduce((s: number, e: Expense) => s + e.amount, 0);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
