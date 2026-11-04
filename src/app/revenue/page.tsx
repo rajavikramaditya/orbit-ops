@@ -22,11 +22,26 @@ export default function RevenuePage() {
     return { ...c, received, spent, profit: received - spent };
   }).sort((a, b) => b.received - a.received);
 
+  const exportCSV = () => {
+    const csvRows = [['Client', 'Package', 'Received', 'Spent', 'Profit']];
+    csvRows.push(...rows.map(c => [c.name, c.package, String(c.received), String(c.spent), String(c.profit)]));
+    const csv = csvRows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'orbit-ops-revenue.csv';
+    a.click();
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Revenue</h1>
-        <p className="text-sm text-muted-foreground">Active clients only</p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Revenue</h1>
+          <p className="text-sm text-muted-foreground">Active clients only</p>
+        </div>
+        <button onClick={exportCSV} className="text-sm px-3 py-2 border rounded-lg">Export CSV</button>
       </header>
 
       <div className="grid grid-cols-3 gap-3">
