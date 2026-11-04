@@ -50,6 +50,7 @@ export default function ClientDetailPage() {
     if (c) {
       c.status = status;
       c.lastActivityAt = new Date().toISOString();
+      c.activity = [{ id: Date.now().toString(), clientId: id, text: `Status changed to ${status}`, at: new Date().toISOString() }, ...(c.activity || [])];
       saveData(data);
       setClient({ ...c });
     }
@@ -68,6 +69,7 @@ export default function ClientDetailPage() {
     if (c) {
       const p: Payment = { id: Date.now().toString(), amount: +payForm.amount, date: payForm.date, note: payForm.note };
       c.payments = [p, ...(c.payments || [])];
+      c.activity = [{ id: Date.now().toString(), clientId: id, text: `Payment of ₹${p.amount.toLocaleString('en-IN')} recorded`, at: new Date().toISOString() }, ...(c.activity || [])];
       saveData(data);
       setClient({ ...c });
       setShowPayment(false);
@@ -279,6 +281,19 @@ export default function ClientDetailPage() {
                   </div>
                 </>
               )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border p-4">
+        <h2 className="text-sm font-medium mb-3">Activity</h2>
+        <div className="space-y-2 text-sm">
+          {(client.activity || []).length === 0 && <p className="text-xs text-muted-foreground">No activity yet.</p>}
+          {(client.activity || []).slice(0, 10).map(a => (
+            <div key={a.id} className="flex justify-between text-muted-foreground">
+              <span>{a.text}</span>
+              <span className="text-xs">{new Date(a.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
             </div>
           ))}
         </div>
