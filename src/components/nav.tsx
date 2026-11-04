@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee } from "lucide-react";
+import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -13,7 +13,8 @@ const links = [
   { href: "/requests", label: "Requests", icon: Inbox },
   { href: "/content", label: "Content", icon: Film },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/guide", label: "Guide", icon: BookOpen },
+  { href: "/team", label: "Team", icon: UserCircle },
+  { href: "/readme", label: "Readme", icon: BookOpen },
 ];
 
 export function Nav() {
