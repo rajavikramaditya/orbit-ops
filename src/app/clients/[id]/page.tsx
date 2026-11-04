@@ -122,17 +122,19 @@ export default function ClientDetailPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">{client.industry} · {client.city} · {client.owner}</p>
         </div>
-        <button onClick={() => setEditing(!editing)} className="text-sm px-3 py-1 border rounded-lg">
-          {editing ? 'Cancel' : 'Edit'}
-        </button>
+        <div className="text-right">
+          <span className="text-xs px-2 py-0.5 rounded border">{client.status}</span>
+          <button onClick={() => setEditing(!editing)} className="block text-sm mt-2 underline">{editing ? 'Cancel' : 'Edit'}</button>
+        </div>
       </header>
 
-      <div className="flex flex-wrap gap-2">
-        {(['Onboarding', 'Active', 'Paused', 'Churned'] as const).map(s => (
-          <button key={s} onClick={() => setStatus(s)} className={`text-xs px-3 py-1 rounded-full border ${client.status === s ? 'bg-foreground text-background' : ''}`}>
-            {s}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Move to</span>
+        <select value={client.status} onChange={e => setStatus(e.target.value as Client['status'])} className="text-sm border rounded px-2 py-1">
+          <option value="Active">Active</option>
+          <option value="Paused">Paused</option>
+          <option value="Churned">Churned (move to bin)</option>
+        </select>
       </div>
 
       {editing ? (
@@ -144,6 +146,7 @@ export default function ClientDetailPage() {
           </div>
           <input value={form.owner || ''} onChange={e => setForm({ ...form, owner: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
           <input type="number" placeholder="Monthly fee (₹)" value={form.monthlyFee || ''} onChange={e => setForm({ ...form, monthlyFee: +e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+          <input type="date" value={form.onboardedOn || ''} onChange={e => setForm({ ...form, onboardedOn: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
           <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2" rows={3} />
           <button onClick={save} className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Save changes</button>
         </div>
