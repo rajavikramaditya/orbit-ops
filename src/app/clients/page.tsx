@@ -7,11 +7,16 @@ import { loadData, saveData, type Client } from '@/lib/store';
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showBin, setShowBin] = useState(false);
   const [form, setForm] = useState({ name: '', package: '8 videos / month', videosPromised: 8, owner: 'Tanvi', industry: '', city: 'Orai', notes: '' });
 
   useEffect(() => {
     setClients(loadData().clients);
   }, []);
+
+  const activeClients = clients.filter(c => c.status !== 'Churned');
+  const churnedClients = clients.filter(c => c.status === 'Churned');
+  const list = showBin ? churnedClients : activeClients;
 
   const addClient = (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +24,7 @@ export default function ClientsPage() {
     const newClient: Client = {
       id: Date.now().toString(),
       name: form.name,
-      status: 'Onboarding',
+      status: 'Active',
       package: form.package,
       videosPromised: form.videosPromised,
       videosPosted: 0,
@@ -43,11 +48,16 @@ export default function ClientsPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="text-sm text-muted-foreground">{clients.length} clients</p>
+          <p className="text-sm text-muted-foreground">{activeClients.length} active · {churnedClients.length} in bin</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-foreground text-background px-4 py-3 text-sm w-full sm:w-auto">
-          {showForm ? 'Cancel' : '+ Client'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowBin(!showBin)} className="text-sm px-3 py-2 border rounded-lg">
+            {showBin ? 'Hide bin' : 'Bin'}
+          </button>
+          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-foreground text-background px-4 py-3 text-sm">
+            {showForm ? 'Cancel' : '+ Client'}
+          </button>
+        </div>
       </header>
 
       {showForm && (
@@ -71,7 +81,8 @@ export default function ClientsPage() {
       )}
 
       <div className="space-y-3">
-        {clients.map((c) => {
+        {list.length === 0 && <p className="text-sm text-muted-foreground">{showBin ? 'Bin is empty.' : 'No active clients.'}</p>}
+        {list.map((c) => {
           const received = (c.payments || []).reduce((s, p) => s + p.amount, 0);
           const spent = (c.expenses || []).reduce((s, e) => s + e.amount, 0);
           return (
@@ -83,29 +94,21 @@ export default function ClientsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium truncate">{c.name}</h3>
-                    <span
-                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                        c.health === 'red' ? 'bg-red-100 text-red-700' : c.health === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                      }`}
-                    >
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c.health === 'red' ? 'bg-red-100 text-red-700' : c.health === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
                       {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                    <span>{c.videosPosted}/{c.videosPromised} posted</span>
-                    <span>·</span>
-                    <span>Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
-                  </div>
                   <div className="mt-1 flex gap-4 text-xs">
                     <span className="text-green-700">Received ₹{received.toLocaleString('en-IN')}</span>
                     <span className="text-red-700">Spent ₹{spent.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground shrink-0">
-                  {c.status}
-                </span>
+                <div className="text-right shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground">{c.status}</span>
+                  <p className="text-[10px] text-muted-foreground mt-1">Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</p>
+                </div>
               </div>
               <div className="mt-3 h-0.5 w-full rounded-full bg-muted overflow-hidden">
                 <div className="h-full bg-foreground/40" style={{ width: `${(c.videosPosted / c.videosPromised) * 100}%` }} />
