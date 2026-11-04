@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/lib/role";
 
 const links = [
   { href: "/today", label: "Today", icon: Home },
@@ -19,6 +20,7 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
+  const { role, setRole } = useRole();
 
   return (
     <>
@@ -50,6 +52,14 @@ export function Nav() {
             </Link>
           ))}
         </nav>
+        <div className="mt-auto pt-4 text-xs">
+          <p className="text-muted-foreground mb-1">Role</p>
+          <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full border rounded px-2 py-1 text-sm">
+            <option value="owner">Owner</option>
+            <option value="manager">Manager</option>
+            <option value="team">Team</option>
+          </select>
+        </div>
       </aside>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-background/95 backdrop-blur md:hidden safe-area-inset-bottom">
