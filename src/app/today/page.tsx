@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { loadData, type Client } from '@/lib/store';
+import { loadData, type Client, type Task } from '@/lib/store';
 import Link from 'next/link';
 
 export default function TodayPage() {
@@ -10,12 +10,12 @@ export default function TodayPage() {
 
   useEffect(() => {
     const data = loadData();
-    setClients(data.clients.filter(c => c.status !== 'Churned'));
-    setOpenTasks(data.tasks.filter(t => t.status !== 'done').length);
+    setClients(data.clients.filter((c: Client) => c.status !== 'Churned'));
+    setOpenTasks(data.tasks.filter((t: Task) => t.status !== 'done').length);
   }, []);
 
-  const behind = clients.filter(c => c.status === 'Active' && c.videosPosted < c.videosPromised * 0.5);
-  const atRisk = clients.filter(c => c.health === 'red');
+  const behind = clients.filter((c: Client) => c.status === 'Active' && c.videosPosted < c.videosPromised * 0.5);
+  const atRisk = clients.filter((c: Client) => c.health === 'red');
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -42,7 +42,7 @@ export default function TodayPage() {
       <section>
         <h2 className="text-sm font-medium text-muted-foreground mb-4">Monthly delivery</h2>
         <div className="space-y-3">
-          {clients.filter(c => c.status === 'Active').map(c => {
+          {clients.filter((c: Client) => c.status === 'Active').map((c: Client) => {
             const pct = Math.round((c.videosPosted / c.videosPromised) * 100);
             const lag = c.videosPosted < c.videosPromised * 0.5;
             return (
