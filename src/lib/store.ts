@@ -18,6 +18,13 @@ export interface Expense {
   note?: string;
 }
 
+export interface Activity {
+  id: string;
+  clientId: string;
+  text: string;
+  at: string;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -36,6 +43,7 @@ export interface Client {
   monthlyFee?: number;
   payments?: Payment[];
   expenses?: Expense[];
+  activity?: Activity[];
 }
 
 export interface Task {
