@@ -93,7 +93,7 @@ export default function ClientDetailPage() {
     const data = loadData();
     const c = data.clients.find((x: Client) => x.id === id);
     if (c && c.payments) {
-      const p = c.payments.find(x => x.id === pid);
+      const p = c.payments.find((x: Payment) => x.id === pid);
       if (p) Object.assign(p, updates);
       saveData(data);
       setClient({ ...c });
@@ -105,7 +105,7 @@ export default function ClientDetailPage() {
     const data = loadData();
     const c = data.clients.find((x: Client) => x.id === id);
     if (c && c.expenses) {
-      const e = c.expenses.find(x => x.id === eid);
+      const e = c.expenses.find((x: Expense) => x.id === eid);
       if (e) Object.assign(e, updates);
       saveData(data);
       setClient({ ...c });
