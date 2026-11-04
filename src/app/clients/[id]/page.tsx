@@ -5,10 +5,12 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { loadData, saveData, touchClient, type Client, type Payment, type Expense } from '@/lib/store';
+import { useRole } from '@/lib/role';
 
 export default function ClientDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { role } = useRole();
   const [client, setClient] = useState<Client | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Client>>({});
@@ -189,6 +191,7 @@ export default function ClientDetailPage() {
         </>
       )}
 
+      {role === 'owner' && (
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium">Payments received (Admin)</h2>
@@ -235,7 +238,9 @@ export default function ClientDetailPage() {
           ))}
         </div>
       </section>
+      )}
 
+      {role === 'owner' && (
       <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium">Expenses (Admin)</h2>
@@ -285,6 +290,7 @@ export default function ClientDetailPage() {
           ))}
         </div>
       </section>
+      )}
 
       <section className="rounded-lg border p-4">
         <h2 className="text-sm font-medium mb-3">Activity</h2>
