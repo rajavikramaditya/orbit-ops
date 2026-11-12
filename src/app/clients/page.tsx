@@ -101,16 +101,32 @@ export default function ClientsPage() {
           const received = (c.payments || []).reduce((s, p) => s + p.amount, 0);
           const spent = (c.expenses || []).reduce((s, e) => s + e.amount, 0);
           return (
-            <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-xl border p-4 hover:bg-muted/40">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">{c.package} · {c.owner}</p>
+            <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border bg-background p-4 hover:bg-muted/40 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                  {c.name.slice(0, 2).toUpperCase()}
                 </div>
-                <div className="text-right text-xs">
-                  <p className="text-green-700">₹{received.toLocaleString('en-IN')}</p>
-                  <p className="text-red-700">₹{spent.toLocaleString('en-IN')}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-medium truncate">{c.name}</h3>
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c.health === 'red' ? 'bg-red-100 text-red-700' : c.health === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
+                      {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
+                  <div className="mt-1 flex gap-4 text-xs">
+                    <span className="text-green-700">Received ₹{received.toLocaleString('en-IN')}</span>
+                    <span className="text-red-700">Spent ₹{spent.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground">{c.status}</span>
+                  <p className="text-[10px] text-muted-foreground mt-1">Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-0.5 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-foreground/40" style={{ width: `${Math.min((c.videosPosted / c.videosPromised) * 100, 100)}%` }} />
               </div>
             </Link>
           );
