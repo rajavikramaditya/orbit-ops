@@ -1,36 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useStore, update, uid, type Member, type MemberRole } from '@/lib/store';
 
-type Member = { id: string; name: string; role: string; focus: string };
+const ROLES: MemberRole[] = ['Owner', 'Manager', 'Editor', 'Shooter', 'Designer'];
 
 export default function TeamPage() {
-  const [members, setMembers] = useState<Member[]>([]);
+  const data = useStore();
+  const members = data.team;
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ name: '', role: 'Editor', focus: '' });
-
-  useEffect(() => {
-    const raw = localStorage.getItem('orbit-ops-team');
-    if (raw) setMembers(JSON.parse(raw));
-    else {
-      const seed: Member[] = [
-        { id: '1', name: 'Vikram', role: 'Owner', focus: 'Strategy, clients, revenue' },
-        { id: '2', name: 'Ram Soni', role: 'Manager', focus: 'Automotive clients' },
-        { id: '3', name: 'Tanvi', role: 'Manager', focus: 'Beauty, education, design' },
-        { id: '4', name: 'Shahil', role: 'Manager', focus: 'Automotive, events' },
-      ];
-      setMembers(seed);
-      localStorage.setItem('orbit-ops-team', JSON.stringify(seed));
-    }
-  }, []);
+  const [form, setForm] = useState({ name: '', role: 'Editor' as MemberRole, focus: '', phone: '' });
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
-    const next = [{ id: Date.now().toString(), ...form }, ...members];
-    setMembers(next);
-    localStorage.setItem('orbit-ops-team', JSON.stringify(next));
+    const m: Member = { id: uid(), name: form.name.trim(), role: form.role, focus: form.focus.trim(), phone: form.phone.trim() || undefined };
+    update(d => { d.team.push(m); });
     setShow(false);
-    setForm({ name: '', role: 'Editor', focus: '' });
+    setForm({ name: '', role: 'Editor', focus: '', phone: '' });
   };
 
   return (
@@ -46,15 +32,14 @@ export default function TeamPage() {
       </header>
 
       {show && (
-        <form onSubmit={add} className="rounded-xl border bg-card p-4 space-y-3">
+        <form onSubmit={add} className="rounded-xl border p-4 space-y-3">
           <input required placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-          <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full border rounded-lg px-3 py-2">
-            <option>Owner</option>
-            <option>Manager</option>
-            <option>Editor</option>
-            <option>Shooter</option>
-            <option>Designer</option>
-          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as MemberRole })} className="border rounded-lg px-3 py-2">
+              {ROLES.map(r => <option key={r}>{r}</option>)}
+            </select>
+            <input placeholder="Phone (optional)" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="border rounded-lg px-3 py-2" />
+          </div>
           <input placeholder="Focus / clients" value={form.focus} onChange={e => setForm({ ...form, focus: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
           <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Save</button>
         </form>
@@ -62,7 +47,7 @@ export default function TeamPage() {
 
       <div className="space-y-3">
         {members.map(m => (
-          <div key={m.id} className="rounded-xl border bg-card p-4 flex items-center justify-between">
+          <div key={m.id} className="rounded-xl border p-4 flex items-center justify-between">
             <div>
               <p className="font-medium">{m.name}</p>
               <p className="text-sm text-muted-foreground">{m.focus}</p>

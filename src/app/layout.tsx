@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 export const metadata: Metadata = {
   title: "Orbit Ops — Orbit Media by Orbitcore",
   description: "Internal operations for Orbit Media. What must we do today?",
-  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "black", title: "Orbit Ops" },
 };
 
 export const viewport: Viewport = {
