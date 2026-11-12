@@ -1,137 +1,186 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { loadData, saveData, type Client } from '@/lib/store';
+import { Plus, Search, Download } from 'lucide-react';
+import { useStore, update, uid, sum, inr, monthLabel, type Client, type Health } from '@/lib/store';
+import { useRole } from '@/lib/role';
+import { useToast } from '@/components/toast';
+import { PageHeader, Card, Button, Input, Select, Field, Textarea, Segmented, HealthBadge, Avatar, ProgressBar, EmptyState, Sheet } from '@/components/ui';
+
+type Filter = 'all' | 'watch' | 'risk' | 'bin';
+
+const blank = { name: '', package: '8 videos / month', videosPromised: 8, owner: '', industry: '', city: 'Orai', notes: '', monthlyFee: '', phone: '', contactName: '' };
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [showBin, setShowBin] = useState(false);
-  const [form, setForm] = useState({ name: '', package: '8 videos / month', videosPromised: 8, owner: 'Tanvi', industry: '', city: 'Orai', notes: '' });
+  const data = useStore();
+  const { isOwner } = useRole();
+  const toast = useToast();
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const [owner, setOwner] = useState('');
+  const [sort, setSort] = useState<'attention' | 'name' | 'fee'>('attention');
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState(blank);
 
-  useEffect(() => {
-    setClients(loadData().clients);
-  }, []);
+  const owners = useMemo(() => [...new Set(data.clients.map(c => c.owner).filter(Boolean))].sort(), [data.clients]);
+  const active = data.clients.filter(c => c.status !== 'Churned');
+  const churned = data.clients.filter(c => c.status === 'Churned');
+  const watchCount = active.filter(c => c.health === 'amber').length;
+  const riskCount = active.filter(c => c.health === 'red').length;
 
-  const activeClients = clients.filter(c => c.status !== 'Churned');
-  const churnedClients = clients.filter(c => c.status === 'Churned');
-  const list = showBin ? churnedClients : activeClients;
+  const list = useMemo(() => {
+    const base = filter === 'bin' ? churned : active;
+    const q = query.trim().toLowerCase();
+    const filtered = base.filter(c => {
+      if (filter === 'watch' && c.health !== 'amber') return false;
+      if (filter === 'risk' && c.health !== 'red') return false;
+      if (owner && c.owner !== owner) return false;
+      if (q && ![c.name, c.owner, c.city, c.industry, c.phone].some(v => (v || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const rank: Record<Health, number> = { red: 0, amber: 1, green: 2 };
+    return filtered.sort((a, b) => {
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      if (sort === 'fee') return (b.monthlyFee || 0) - (a.monthlyFee || 0);
+      return rank[a.health] - rank[b.health] || a.name.localeCompare(b.name);
+    });
+  }, [active, churned, filter, query, owner, sort]);
+
+  const add = (e: React.FormEvent) => {
+    e.preventDefault();
+    const c: Client = {
+      id: uid(), name: form.name.trim(), status: 'Active', package: form.package, videosPromised: form.videosPromised || 8,
+      videosPosted: 0, lastActivityAt: new Date().toISOString(), health: 'green', owner: form.owner.trim(),
+      industry: form.industry.trim(), city: form.city.trim(), notes: form.notes.trim(),
+      onboardedOn: new Date().toISOString().slice(0, 10), monthlyFee: form.monthlyFee ? +form.monthlyFee : undefined,
+      phone: form.phone.trim() || undefined, contactName: form.contactName.trim() || undefined,
+    };
+    update(d => { d.clients.unshift(c); });
+    toast(`${c.name} added`);
+    setShow(false);
+    setForm(blank);
+  };
 
   const exportCSV = () => {
-    const rows = [['Name', 'Status', 'Package', 'Owner', 'Onboarded', 'Monthly Fee', 'Received', 'Spent']];
-    activeClients.forEach(c => {
-      const received = (c.payments || []).reduce((s, p) => s + p.amount, 0);
-      const spent = (c.expenses || []).reduce((s, e) => s + e.amount, 0);
-      rows.push([c.name, c.status, c.package, c.owner, c.onboardedOn, String(c.monthlyFee || ''), String(received), String(spent)]);
+    const rows = [['Name', 'Status', 'Health', 'Package', 'Owner', 'City', 'Onboarded', 'Monthly Fee', 'Posted', 'Promised', ...(isOwner ? ['Received', 'Spent'] : [])]];
+    active.forEach(c => {
+      const base = [c.name, c.status, c.health, c.package, c.owner, c.city, c.onboardedOn, String(c.monthlyFee || ''), String(c.videosPosted), String(c.videosPromised)];
+      rows.push(isOwner ? [...base, String(sum(c.payments)), String(sum(c.expenses))] : base);
     });
-    const csv = rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'orbit-ops-clients.csv';
-    a.click();
-  };
-
-  const addClient = (e: React.FormEvent) => {
-    e.preventDefault();
-    const data = loadData();
-    const newClient: Client = {
-      id: Date.now().toString(),
-      name: form.name,
-      status: 'Active',
-      package: form.package,
-      videosPromised: form.videosPromised,
-      videosPosted: 0,
-      lastActivityAt: new Date().toISOString(),
-      health: 'green',
-      owner: form.owner,
-      industry: form.industry,
-      city: form.city,
-      notes: form.notes,
-      onboardedOn: new Date().toISOString().slice(0, 10),
-    };
-    data.clients.unshift(newClient);
-    saveData(data);
-    setClients(data.clients);
-    setShowForm(false);
-    setForm({ name: '', package: '8 videos / month', videosPromised: 8, owner: 'Tanvi', industry: '', city: 'Orai', notes: '' });
+    a.href = url; a.download = 'orbit-ops-clients.csv'; a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV downloaded');
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="text-sm text-muted-foreground">{activeClients.length} active</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} className="text-sm px-3 py-2 border rounded-lg">Export CSV</button>
-          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-foreground text-background px-4 py-3 text-sm">
-            {showForm ? 'Cancel' : '+ Client'}
-          </button>
-        </div>
-      </header>
+    <div className="max-w-4xl mx-auto space-y-5">
+      <PageHeader title="Clients" subtitle={`${active.length} active · ${watchCount} to watch · ${riskCount} at risk`}
+        actions={
+          <>
+            <Button size="sm" onClick={exportCSV}><Download className="h-3.5 w-3.5" /> CSV</Button>
+            <Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Client</Button>
+          </>
+        }
+      >
+        <Segmented<Filter>
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: 'All', count: active.length },
+            { value: 'watch', label: 'Watch', count: watchCount },
+            { value: 'risk', label: 'At risk', count: riskCount },
+            { value: 'bin', label: 'Bin', count: churned.length },
+          ]}
+        />
+      </PageHeader>
 
-      {showForm && (
-        <form onSubmit={addClient} className="rounded-xl border p-4 space-y-3">
-          <input required placeholder="Client name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-          <div className="grid grid-cols-2 gap-2">
-            <input placeholder="Package" value={form.package} onChange={e => setForm({ ...form, package: e.target.value })} className="border rounded-lg px-3 py-2" />
-            <input type="number" placeholder="Videos / month" value={form.videosPromised} onChange={e => setForm({ ...form, videosPromised: +e.target.value })} className="border rounded-lg px-3 py-2" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input placeholder="Owner" value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })} className="border rounded-lg px-3 py-2" />
-            <input placeholder="City" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="border rounded-lg px-3 py-2" />
-          </div>
-          <input placeholder="Industry" value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-          <textarea placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2" rows={2} />
-          <button type="submit" className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">Save Client</button>
-        </form>
-      )}
-
-      <div className="flex gap-2 text-sm">
-        <button onClick={() => setShowBin(false)} className={!showBin ? 'font-medium' : 'text-muted-foreground'}>Active</button>
-        <button onClick={() => setShowBin(true)} className={showBin ? 'font-medium' : 'text-muted-foreground'}>Bin ({churnedClients.length})</button>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, owner, city…" className="pl-9" />
+        </div>
+        <Select value={owner} onChange={e => setOwner(e.target.value)} className="sm:w-44">
+          <option value="">All owners</option>
+          {owners.map(o => <option key={o}>{o}</option>)}
+        </Select>
+        <Select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="sm:w-44">
+          <option value="attention">Needs attention</option>
+          <option value="name">Name</option>
+          <option value="fee">Monthly fee</option>
+        </Select>
       </div>
 
-      <div className="space-y-2">
+      {list.length === 0 && (
+        <EmptyState
+          title={filter === 'bin' ? 'Bin is empty' : query ? 'No clients match' : 'No clients yet'}
+          hint={filter === 'bin' ? 'Churned clients land here instead of disappearing.' : 'Add a client to start tracking their monthly delivery.'}
+        />
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-3">
         {list.map(c => {
-          const received = (c.payments || []).reduce((s, p) => s + p.amount, 0);
-          const spent = (c.expenses || []).reduce((s, e) => s + e.amount, 0);
+          const received = sum(c.payments);
+          const spent = sum(c.expenses);
           return (
-            <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border bg-background p-4 hover:bg-muted/40 transition-colors">
-              <div className="flex items-start gap-3">
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
-                  {c.name.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-medium truncate">{c.name}</h3>
-                    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c.health === 'red' ? 'bg-red-100 text-red-700' : c.health === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${c.health === 'red' ? 'bg-red-600' : c.health === 'amber' ? 'bg-amber-600' : 'bg-green-600'}`} />
-                      {c.health === 'red' ? 'At risk' : c.health === 'amber' ? 'Watch' : 'On track'}
-                    </span>
+            <Link key={c.id} href={`/clients/${c.id}`}>
+              <Card className="p-4 hover:border-foreground/20 transition-colors h-full">
+                <div className="flex items-start gap-3">
+                  <Avatar name={c.name} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium truncate">{c.name}</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner || 'Unassigned'}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.package} · {c.owner}</p>
-                  <div className="mt-1 flex gap-4 text-xs">
-                    <span className="text-green-700">Received ₹{received.toLocaleString('en-IN')}</span>
-                    <span className="text-red-700">Spent ₹{spent.toLocaleString('en-IN')}</span>
+                  {filter === 'bin' ? <span className="text-[11px] text-muted-foreground">{c.status}</span> : <HealthBadge health={c.health} />}
+                </div>
+                {filter !== 'bin' && (
+                  <>
+                    <ProgressBar value={c.videosPosted} max={c.videosPromised} tone={c.health} className="mt-3" />
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span className="tabular-nums">{c.videosPosted}/{c.videosPromised} this month</span>
+                      <span>Since {monthLabel(c.onboardedOn.slice(0, 7))}</span>
+                    </div>
+                  </>
+                )}
+                {isOwner && (received > 0 || spent > 0) && (
+                  <div className="mt-2 flex gap-3 text-xs tabular-nums">
+                    <span className="text-green">Received {inr(received)}</span>
+                    <span className="text-red">Spent {inr(spent)}</span>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs px-2 py-0.5 rounded border text-muted-foreground">{c.status}</span>
-                  <p className="text-[10px] text-muted-foreground mt-1">Since {new Date(c.onboardedOn).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</p>
-                </div>
-              </div>
-              <div className="mt-3 h-0.5 w-full rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-foreground/40" style={{ width: `${Math.min((c.videosPosted / c.videosPromised) * 100, 100)}%` }} />
-              </div>
+                )}
+              </Card>
             </Link>
           );
         })}
       </div>
+
+      <Sheet open={show} onClose={() => setShow(false)} title="New client" footer={<><Button onClick={() => setShow(false)}>Cancel</Button><Button form="add-client" type="submit" variant="primary">Save client</Button></>}>
+        <form id="add-client" onSubmit={add} className="space-y-3">
+          <Field label="Client name"><Input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Business name" /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Package"><Input value={form.package} onChange={e => setForm({ ...form, package: e.target.value })} /></Field>
+            <Field label="Videos / month"><Input type="number" min={1} value={form.videosPromised} onChange={e => setForm({ ...form, videosPromised: +e.target.value })} /></Field>
+            <Field label="Account owner">
+              <Select value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })}>
+                <option value="">Unassigned</option>
+                {data.team.map(m => <option key={m.id}>{m.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Monthly fee (₹)"><Input type="number" min={0} value={form.monthlyFee} onChange={e => setForm({ ...form, monthlyFee: e.target.value })} placeholder="0" /></Field>
+            <Field label="Contact person"><Input value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></Field>
+            <Field label="Phone"><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} inputMode="tel" /></Field>
+            <Field label="City"><Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></Field>
+            <Field label="Industry"><Input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} /></Field>
+          </div>
+          <Field label="Notes"><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></Field>
+        </form>
+      </Sheet>
     </div>
   );
 }

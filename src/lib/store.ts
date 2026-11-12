@@ -130,6 +130,7 @@ export interface AppData {
 }
 
 const KEY = 'orbit-ops-data-v2';
+const LEGACY_KEYS: string[] = [];
 const LEGACY_TEAM_KEY = 'orbit-ops-team';
 
 export const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -229,19 +230,23 @@ export function monthLabel(ym: string) {
 
 // ---------- Persistence ----------
 
-let cache: AppData | null = null;
-const listeners = new Set<() => void>();
+import { KEY as STORE_KEY, state } from './store-cache';
+
+if (STORE_KEY !== KEY) throw new Error('store key mismatch');
 
 function migrate(raw: unknown): AppData {
   const s = seed();
   const d = (raw && typeof raw === 'object' ? raw : {}) as Partial<AppData>;
+  // A stored document always wins, even when a list is empty. Falling back to
+  // the seed on a missing key only — an empty array is real user data.
+  const list = <T,>(value: unknown, fallback: T[]): T[] => (Array.isArray(value) ? value as T[] : fallback);
   const data: AppData = {
     version: 3,
-    clients: Array.isArray(d.clients) ? d.clients : s.clients,
-    tasks: Array.isArray(d.tasks) ? d.tasks : [],
-    requests: Array.isArray(d.requests) ? d.requests : [],
-    content: Array.isArray(d.content) ? d.content : [],
-    team: Array.isArray(d.team) && d.team.length ? d.team : s.team,
+    clients: list<Client>(d.clients, s.clients).map(c => ({ ...c })),
+    tasks: list<Task>(d.tasks, []).map(t => ({ ...t })),
+    requests: list<RequestItem>(d.requests, []).map(r => ({ ...r })),
+    content: list<ContentItem>(d.content, []).map(c => ({ ...c })),
+    team: list<Member>(d.team, s.team).map(m => ({ ...m })),
     settings: { ...s.settings, ...(d.settings || {}) },
   };
   if (!Array.isArray(d.team)) {
@@ -258,9 +263,16 @@ function migrate(raw: unknown): AppData {
 
 function read(): AppData {
   if (typeof window === 'undefined') return EMPTY;
+  const seen = state.revision;
   let data: AppData;
   try {
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY);
+    if (!raw) {
+      for (const legacy of LEGACY_KEYS) {
+        const old = localStorage.getItem(legacy);
+        if (old) { raw = old; break; }
+      }
+    }
     data = raw ? migrate(JSON.parse(raw)) : seed();
   } catch {
     data = seed();
@@ -271,23 +283,39 @@ function read(): AppData {
     const h = computeHealth(c);
     if (h !== c.health) { c.health = h; healthChanged = true; }
   }
+  // A save that landed while we were normalising is newer than the snapshot this
+  // read started from, so keep it and discard our derived copy.
+  if (seen !== state.revision) return state.cache ?? data;
   if (rolled || healthChanged || !localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(data));
+  state.epoch = state.revision;
   return data;
 }
 
 function emit() {
-  for (const l of listeners) l();
+  for (const l of state.listeners) l();
 }
 
 export function loadData(): AppData {
   if (typeof window === 'undefined') return EMPTY;
-  if (!cache) cache = read();
-  return cache;
+  // A write through this page bumps the revision, so a cache that predates it is
+  // rebuilt. Writes from another tab arrive through the `storage` listener.
+  if (state.hydrated && state.epoch !== state.revision) state.cache = read();
+  return state.cache ?? EMPTY;
+}
+
+/** First read for this document. Safe to call more than once. */
+export function hydrate() {
+  if (typeof window === 'undefined') return;
+  state.hydrated = true;
+  state.cache = null;
+  state.cache = read();
+  emit();
 }
 
 export function saveData(data: AppData) {
-  cache = { ...data };
-  localStorage.setItem(KEY, JSON.stringify(cache));
+  state.cache = { ...data };
+  localStorage.setItem(KEY, JSON.stringify(state.cache));
+  state.epoch = state.revision;
   emit();
 }
 
@@ -300,17 +328,12 @@ export function update(fn: (d: AppData) => void) {
 }
 
 export function replaceAll(data: unknown) {
-  const migrated = migrate(data);
-  localStorage.setItem(KEY, JSON.stringify(migrated));
-  cache = null;
-  cache = read();
-  emit();
+  saveData(migrate(data));
 }
 
 export function resetToSeed() {
   localStorage.removeItem(KEY);
-  cache = null;
-  cache = read();
+  state.cache = read();
   emit();
 }
 
@@ -319,14 +342,19 @@ export function exportJSON(): string {
 }
 
 function subscribe(cb: () => void) {
-  listeners.add(cb);
+  state.listeners.add(cb);
   const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) { cache = null; cb(); }
+    if (e.key === KEY) { state.cache = null; cb(); }
   };
   window.addEventListener('storage', onStorage);
+  // bfcache restores keep the module cache but can show storage changed by
+  // another page, so re-read whenever the page is shown again.
+  const onShow = (e: PageTransitionEvent) => { if (e.persisted) { state.cache = null; cb(); } };
+  window.addEventListener('pageshow', onShow);
   return () => {
-    listeners.delete(cb);
+    state.listeners.delete(cb);
     window.removeEventListener('storage', onStorage);
+    window.removeEventListener('pageshow', onShow);
   };
 }
 

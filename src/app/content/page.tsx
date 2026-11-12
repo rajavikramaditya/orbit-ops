@@ -1,183 +1,195 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { loadData, saveData, touchClient, type ContentItem, type Client } from '@/lib/store';
+import { useState } from 'react';
+import Link from 'next/link';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useStore, update, uid, touch, logActivity, clientName, today, STAGES, type Stage, type ContentItem } from '@/lib/store';
+import { useToast } from '@/components/toast';
+import { PageHeader, Card, Button, Field, Input, Select, Segmented, EmptyState, Sheet, Badge } from '@/components/ui';
 
-const STAGES = ['idea', 'planned', 'shot', 'editing', 'ready', 'approved', 'scheduled', 'posted'] as const;
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function getFirstDayOfMonth(year: number, month: number) {
-  return new Date(year, month, 1).getDay();
-}
+const blank = { clientId: '', title: '', stage: 'idea' as Stage, assignee: '', due: '' };
 
 export default function ContentPage() {
-  const [items, setItems] = useState<ContentItem[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const data = useStore();
+  const toast = useToast();
+  const [view, setView] = useState<'board' | 'calendar'>('board');
+  const [clientFilter, setClientFilter] = useState('');
   const [show, setShow] = useState(false);
-  const [view, setView] = useState<'list' | 'calendar'>('list');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [form, setForm] = useState({ clientId: '', title: '', stage: 'idea' as const, assignee: 'Prathmes', due: '' });
+  const [form, setForm] = useState(blank);
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
-  const refresh = () => {
-    const data = loadData();
-    setItems(data.content);
-    setClients(data.clients);
-  };
-
-  useEffect(() => { refresh(); }, []);
+  const members = data.team.map(m => m.name);
+  const clients = data.clients.filter(c => c.status !== 'Churned');
+  const items = data.content.filter(i => !clientFilter || i.clientId === clientFilter);
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = loadData();
-    data.content.unshift({
-      id: Date.now().toString(),
-      clientId: form.clientId,
-      title: form.title,
-      stage: form.stage,
-      assignee: form.assignee,
-      due: form.due || undefined,
-      createdAt: new Date().toISOString(),
+    update(d => {
+      d.content.unshift({ id: uid(), clientId: form.clientId, title: form.title.trim(), stage: form.stage, assignee: form.assignee, due: form.due || undefined, createdAt: new Date().toISOString() });
+      logActivity(d, form.clientId, `Content added: ${form.title.trim()}`);
+      touch(d, form.clientId);
     });
-    saveData(data);
-    touchClient(form.clientId);
+    toast('Content added');
     setShow(false);
-    setForm({ clientId: '', title: '', stage: 'idea', assignee: 'Prathmes', due: '' });
-    refresh();
+    setForm(blank);
   };
 
-  const move = (id: string, stage: ContentItem['stage']) => {
-    const data = loadData();
-    const item = data.content.find((x: ContentItem) => x.id === id);
-    if (item) {
+  const move = (id: string, stage: Stage) => {
+    update(d => {
+      const item = d.content.find(x => x.id === id);
+      const c = item && d.clients.find(x => x.id === item.clientId);
+      if (!item || !c || item.stage === stage) return;
+      const wasPosted = item.stage === 'posted';
       item.stage = stage;
-      if (stage === 'posted') {
-        const c = data.clients.find((x: Client) => x.id === item.clientId);
-        if (c) c.videosPosted = Math.min(c.videosPosted + 1, c.videosPromised);
-      }
-    }
-    saveData(data);
-    if (item) touchClient(item.clientId);
-    refresh();
+      if (stage === 'posted' && !wasPosted) { c.videosPosted += 1; item.postedAt = new Date().toISOString(); logActivity(d, c.id, `Posted: ${item.title}`); }
+      if (wasPosted && stage !== 'posted') { c.videosPosted = Math.max(0, c.videosPosted - 1); item.postedAt = undefined; logActivity(d, c.id, `Moved back from posted: ${item.title}`); }
+      touch(d, c.id);
+    });
   };
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
-  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-
-  const itemsByDate: Record<string, ContentItem[]> = {};
-  items.forEach(item => {
-    const dateKey = item.due || item.createdAt.slice(0, 10);
-    if (!itemsByDate[dateKey]) itemsByDate[dateKey] = [];
-    itemsByDate[dateKey].push(item);
-  });
+  const remove = (id: string) => {
+    if (!confirm('Delete this content item? If it was posted, the client count is reduced by one.')) return;
+    update(d => {
+      const item = d.content.find(x => x.id === id);
+      if (item?.stage === 'posted') {
+        const c = d.clients.find(x => x.id === item.clientId);
+        if (c) c.videosPosted = Math.max(0, c.videosPosted - 1);
+      }
+      d.content = d.content.filter(x => x.id !== id);
+    });
+    toast('Deleted');
+  };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Content Pipeline</h1>
-          <p className="text-sm text-muted-foreground">Idea → Shot → Edited → Posted</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex rounded-lg border overflow-hidden">
-            <button onClick={() => setView('list')} className={`px-3 py-2 text-sm ${view === 'list' ? 'bg-foreground text-background' : ''}`}>List</button>
-            <button onClick={() => setView('calendar')} className={`px-3 py-2 text-sm ${view === 'calendar' ? 'bg-foreground text-background' : ''}`}>Calendar</button>
-          </div>
-          <button onClick={() => setShow(!show)} className="bg-foreground text-background px-4 py-2 rounded-lg text-sm">
-            {show ? 'Cancel' : '+ Content'}
-          </button>
-        </div>
-      </header>
-
-      {show && (
-        <form onSubmit={add} className="rounded-xl border p-4 space-y-3">
-          <select required value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })} className="w-full border rounded-lg px-3 py-2">
-            <option value="">Select client</option>
+    <div className="max-w-6xl mx-auto space-y-5">
+      <PageHeader title="Content" subtitle="Idea to posted, one stage at a time"
+        actions={<Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Content</Button>}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <Segmented<'board' | 'calendar'> value={view} onChange={setView} options={[{ value: 'board', label: 'Board' }, { value: 'calendar', label: 'Calendar' }]} />
+          <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)} className="sm:w-56 sm:ml-auto">
+            <option value="">All clients</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <input required placeholder="Title / idea" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as any })} className="border rounded-lg px-3 py-2">
-              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <input value={form.assignee} onChange={e => setForm({ ...form, assignee: e.target.value })} className="border rounded-lg px-3 py-2" />
-            <input type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} className="border rounded-lg px-3 py-2" />
-          </div>
-          <button type="submit" className="bg-green text-white px-4 py-2 rounded-lg text-sm">Add</button>
-        </form>
-      )}
+          </Select>
+        </div>
+      </PageHeader>
 
-      {view === 'list' ? (
-        <div className="space-y-3">
-          {items.length === 0 && <p className="text-sm text-muted-foreground">No content items yet.</p>}
-          {items.map(item => {
-            const client = clients.find(c => c.id === item.clientId);
+      {data.content.length === 0 && view === 'board' && <EmptyState title="Pipeline is empty" hint="Add every video, reel and poster here. Moving an item to Posted updates the client's monthly count automatically." action={<Button size="sm" variant="primary" onClick={() => setShow(true)}>Add content</Button>} />}
+
+      {view === 'board' ? (
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+          {STAGES.map(stage => {
+            const col = items.filter(i => i.stage === stage);
             return (
-              <div key={item.id} className="rounded-xl border p-4">
-                <div className="flex justify-between">
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{client?.name} · {item.assignee}{item.due ? ` · ${item.due}` : ''}</p>
-                  </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full border">{item.stage}</span>
+              <div key={stage} className="w-64 shrink-0">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{stage}</h2>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">{col.length}</span>
                 </div>
-                <div className="flex flex-wrap gap-1 mt-3">
-                  {STAGES.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => move(item.id, s)}
-                      className={`text-xs px-2 py-1 rounded ${item.stage === s ? 'bg-foreground text-background' : 'border'}`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                <div className="space-y-2 min-h-24">
+                  {col.map(item => <ContentCard key={item.id} item={item} name={clientName(data, item.clientId)} onMove={s => move(item.id, s)} onDelete={() => remove(item.id)} />)}
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="px-3 py-1 border rounded-lg text-sm">←</button>
-            <h2 className="font-medium">{monthName}</h2>
-            <button onClick={nextMonth} className="px-3 py-1 border rounded-lg text-sm">→</button>
-          </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-1">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} className="aspect-square" />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const dayItems = itemsByDate[dateKey] || [];
-              const isToday = dateKey === new Date().toISOString().slice(0, 10);
-              return (
-                <div key={day} className={`aspect-square border rounded-lg p-1 text-xs ${isToday ? 'border-foreground' : 'border-border'}`}>
-                  <div className="font-medium">{day}</div>
-                  <div className="space-y-0.5 mt-0.5 overflow-hidden">
-                    {dayItems.slice(0, 2).map(item => (
-                      <div key={item.id} className="truncate text-[10px] bg-muted rounded px-0.5" title={item.title}>
-                        {item.title}
-                      </div>
-                    ))}
-                    {dayItems.length > 2 && <div className="text-[10px] text-muted-foreground">+{dayItems.length - 2}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <Calendar cursor={cursor} setCursor={setCursor} items={items} names={(id) => clientName(data, id)} />
       )}
+
+      <Sheet open={show} onClose={() => setShow(false)} title="New content" footer={<><Button onClick={() => setShow(false)}>Cancel</Button><Button form="add-content" type="submit" variant="primary">Add</Button></>}>
+        <form id="add-content" onSubmit={add} className="space-y-3">
+          <Field label="Client">
+            <Select required value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })}>
+              <option value="">Select client</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Title / idea"><Input required autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="What is this piece about?" /></Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Stage">
+              <Select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as Stage })}>
+                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            </Field>
+            <Field label="Assignee">
+              <Select value={form.assignee} onChange={e => setForm({ ...form, assignee: e.target.value })}>
+                <option value="">Unassigned</option>
+                {members.map(n => <option key={n}>{n}</option>)}
+              </Select>
+            </Field>
+            <Field label="Due"><Input type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} /></Field>
+          </div>
+        </form>
+      </Sheet>
     </div>
+  );
+}
+
+function ContentCard({ item, name, onMove, onDelete }: { item: ContentItem; name?: string; onMove: (s: Stage) => void; onDelete: () => void }) {
+  const idx = STAGES.indexOf(item.stage);
+  return (
+    <Card className="p-3 space-y-2">
+      <p className="text-sm font-medium leading-snug">{item.title}</p>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <Link href={`/clients/${item.clientId}`} className="truncate hover:underline">{name}</Link>
+        {item.assignee && <span className="shrink-0">{item.assignee}</span>}
+      </div>
+      {item.due && <p className={`text-[11px] ${item.due < today() && item.stage !== 'posted' ? 'text-red' : 'text-muted-foreground'}`}>Due {item.due.slice(5)}</p>}
+      <div className="flex items-center gap-1 pt-1">
+        <button disabled={idx === 0} onClick={() => onMove(STAGES[idx - 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">← {idx > 0 ? STAGES[idx - 1] : ''}</button>
+        <button disabled={idx === STAGES.length - 1} onClick={() => onMove(STAGES[idx + 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">{idx < STAGES.length - 1 ? STAGES[idx + 1] : ''} →</button>
+      </div>
+      <button onClick={onDelete} className="text-[11px] text-muted-foreground hover:text-red">Delete</button>
+    </Card>
+  );
+}
+
+function Calendar({ cursor, setCursor, items, names }: { cursor: Date; setCursor: (d: Date) => void; items: ContentItem[]; names: (id: string) => string | undefined }) {
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const label = cursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const todayKey = today();
+
+  const byDate: Record<string, ContentItem[]> = {};
+  for (const item of items) {
+    const key = item.due || item.createdAt.slice(0, 10);
+    (byDate[key] ||= []).push(item);
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="h-9 w-9 rounded-xl border flex items-center justify-center hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
+        <h2 className="font-medium">{label}</h2>
+        <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="h-9 w-9 rounded-xl border flex items-center justify-center hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground mb-1">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="py-1">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1;
+          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const dayItems = byDate[key] || [];
+          return (
+            <div key={day} className={`min-h-16 sm:min-h-24 rounded-xl border p-1.5 ${key === todayKey ? 'border-foreground' : ''}`}>
+              <div className={`text-xs font-medium ${key === todayKey ? '' : 'text-muted-foreground'}`}>{day}</div>
+              <div className="mt-1 space-y-0.5">
+                {dayItems.slice(0, 3).map(item => (
+                  <div key={item.id} className="truncate text-[10px] rounded-md bg-muted px-1 py-0.5" title={`${item.title} · ${names(item.clientId) || ''}`}>
+                    {item.title}
+                  </div>
+                ))}
+                {dayItems.length > 3 && <div className="text-[10px] text-muted-foreground px-1">+{dayItems.length - 3}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground"><Badge>Due date</Badge> Items appear on their due date, or their creation date when no due date is set.</div>
+    </Card>
   );
 }
