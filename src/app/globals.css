@@ -1,33 +1,64 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f7f7f5;
   --foreground: #0a0a0a;
-  --muted: #f5f5f5;
-  --border: #e5e5e5;
-  --green: #16a34a;
-  --amber: #d97706;
-  --red: #dc2626;
+  --card: #ffffff;
+  --muted: #f0f0ee;
+  --muted-foreground: #6b6b6b;
+  --border: #e4e4e1;
+  --ring: #0a0a0a;
+  --green: #15803d;
+  --amber: #b45309;
+  --red: #b91c1c;
+  --green-soft: #ecfdf3;
+  --amber-soft: #fff7e6;
+  --red-soft: #fef2f2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0b0b;
+    --foreground: #f4f4f2;
+    --card: #141414;
+    --muted: #1c1c1c;
+    --muted-foreground: #9a9a9a;
+    --border: #262626;
+    --ring: #f4f4f2;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --green-soft: rgba(74, 222, 128, 0.12);
+    --amber-soft: rgba(251, 191, 36, 0.12);
+    --red-soft: rgba(248, 113, 113, 0.12);
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
   --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-ring: var(--ring);
   --color-green: var(--green);
   --color-amber: var(--amber);
   --color-red: var(--red);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-green-soft: var(--green-soft);
+  --color-amber-soft: var(--amber-soft);
+  --color-red-soft: var(--red-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.02);
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.14);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #fafafa;
-    --muted: #171717;
-    --border: #262626;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light dark;
 }
 
 body {
@@ -35,22 +66,55 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01", "tnum";
 }
 
-/* Mobile first tap targets */
-button, a, [role="button"] {
-  min-height: 44px;
-  min-width: 44px;
+input, select, textarea {
+  background: var(--card);
+  color: var(--foreground);
 }
 
-/* Safe area for iPhone bottom nav */
+input::placeholder, textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+:where(input, select, textarea, button, a):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+input[type="date"] {
+  min-height: 2.5rem;
+}
+
 .safe-area-inset-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Prevent text overflow on mobile */
-.truncate-mobile {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-rise {
+  animation: rise 0.18s ease-out both;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade {
+  animation: fade 0.15s ease-out both;
 }
