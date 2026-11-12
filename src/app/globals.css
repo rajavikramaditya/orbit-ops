@@ -84,8 +84,8 @@ input::placeholder, textarea::placeholder {
   outline-offset: 2px;
 }
 
-input[type="date"] {
-  min-height: 2.5rem;
+input[type="date"], input[type="number"], input[type="password"], input[type="tel"] {
+  height: 2.5rem;
 }
 
 .safe-area-inset-bottom {

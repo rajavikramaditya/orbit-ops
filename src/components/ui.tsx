@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Health } from '@/lib/store';
 import { healthLabel } from '@/lib/store';
@@ -47,7 +47,7 @@ export function Button({ variant = 'secondary', size = 'md', className, ...props
       {...props}
       className={cn(
         'inline-flex items-center justify-center gap-1.5 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap',
-        size === 'md' ? 'min-h-10 px-4 text-sm' : 'min-h-8 px-3 text-xs',
+        size === 'md' ? 'h-10 px-4 text-sm' : 'h-8 px-3 text-xs',
         variant === 'primary' && 'bg-foreground text-background hover:opacity-90',
         variant === 'secondary' && 'border bg-card hover:bg-muted',
         variant === 'ghost' && 'hover:bg-muted text-muted-foreground hover:text-foreground',
@@ -58,14 +58,19 @@ export function Button({ variant = 'secondary', size = 'md', className, ...props
   );
 }
 
-const fieldBase = 'w-full rounded-xl border px-3 py-2.5 text-sm min-h-10 focus:border-foreground/40 transition-colors';
+const fieldBase = 'w-full rounded-xl border px-3 py-2 text-sm h-10 focus:border-foreground/40 transition-colors';
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(fieldBase, className)} />;
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cn(fieldBase, 'appearance-none bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat pr-9', className)} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }} />;
+  return (
+    <div className="relative">
+      <select {...props} className={cn(fieldBase, 'appearance-none pr-9', className)} />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
 }
 
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -146,12 +151,15 @@ export function ProgressBar({ value, max, tone, className }: { value: number; ma
 
 export function Segmented<T extends string>({ options, value, onChange, className }: { options: { value: T; label: ReactNode; count?: number }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
-    <div className={cn('flex gap-1 overflow-x-auto no-scrollbar -mx-1 px-1', className)}>
+    <div role="radiogroup" className={cn('flex gap-1 overflow-x-auto no-scrollbar -mx-1 px-1', className)}>
       {options.map(o => (
         <button
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border', value === o.value ? 'bg-foreground text-background border-foreground' : 'bg-card text-muted-foreground hover:text-foreground')}
+          className={cn('inline-flex items-center justify-center gap-1.5 rounded-full px-3 h-8 text-xs font-medium whitespace-nowrap transition-colors border', value === o.value ? 'bg-foreground text-background border-foreground' : 'bg-card text-muted-foreground hover:text-foreground')}
         >
           {o.label}
           {o.count !== undefined && <span className={cn('tabular-nums text-[10px] rounded-full px-1.5', value === o.value ? 'bg-background/20' : 'bg-muted')}>{o.count}</span>}
