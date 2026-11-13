@@ -118,6 +118,8 @@ export interface Member {
 export interface Settings {
   companyName: string;
   ownerPin?: string;
+  /** True when a PIN exists on the server. The PIN itself is never sent to the browser. */
+  ownerPinSet?: boolean;
   currency: string;
 }
 
@@ -353,6 +355,10 @@ function read(): AppData {
         if (old) { raw = old; break; }
       }
     }
+    if (!state.originChecked) {
+      state.preexisting = !!raw;
+      state.originChecked = true;
+    }
     data = raw ? migrate(JSON.parse(raw)) : seed();
   } catch {
     data = seed();
@@ -397,7 +403,14 @@ export function saveData(data: AppData) {
   localStorage.setItem(KEY, JSON.stringify(state.cache));
   state.epoch = state.revision;
   emit();
+  if (!state.applyingRemote) state.onSave?.(state.cache);
 }
+
+/** Replace the local cache with a server copy without echoing it back. */
+state.applyRemote = (data: AppData) => {
+  state.applyingRemote = true;
+  try { saveData(migrate(data)); } finally { state.applyingRemote = false; }
+};
 
 /** Mutate a fresh copy of the data and persist it. */
 export function update(fn: (d: AppData) => void) {

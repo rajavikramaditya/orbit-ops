@@ -7,7 +7,8 @@ import { usePathname } from 'next/navigation';
 import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, ROLE_LABEL } from '@/lib/role';
-import { useStore, type Role } from '@/lib/store';
+import { unlockOwner } from '@/lib/sync';
+import { loadData, useStore, type Role } from '@/lib/store';
 import { Sheet, Button, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
 
@@ -149,14 +150,20 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
     setPin('');
   };
 
-  const unlock = (e: React.FormEvent) => {
+  const unlock = async (e: React.FormEvent) => {
     e.preventDefault();
+    const settings = loadData().settings;
+    if (settings.ownerPinSet && !settings.ownerPin) {
+      const ok = await unlockOwner(pin);
+      if (ok === 'locked') { setErr('Too many tries. Wait 15 minutes.'); return; }
+      if (ok !== 'ok') { setErr('Wrong PIN'); return; }
+    }
     const res = switchRole('owner', pin);
     if (res === 'ok') { setOpen(false); setPin(''); setErr(''); toast('Owner unlocked'); }
     else setErr('Wrong PIN');
   };
 
-  const needsPin = !!data.settings.ownerPin && role !== 'owner';
+  const needsPin = !!(data.settings.ownerPin || data.settings.ownerPinSet) && role !== 'owner';
 
   return (
     <>

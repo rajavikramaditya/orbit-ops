@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
+import { state } from './store-cache';
+import { lockOwner } from './sync';
 
 const ROLE_KEY = 'orbit-ops-role';
 const listeners = new Set<() => void>();
@@ -11,7 +13,8 @@ function readRole(): Role {
   const r = localStorage.getItem(ROLE_KEY);
   if (r === 'owner' || r === 'manager' || r === 'team') return r;
   // First visit on this device: owner only if no PIN protects it.
-  return loadData().settings.ownerPin ? 'team' : 'owner';
+  const settings = loadData().settings;
+  return (settings.ownerPin || settings.ownerPinSet) ? 'team' : 'owner';
 }
 
 function write(r: Role) {
@@ -35,13 +38,16 @@ export type SwitchResult = 'ok' | 'pin-required' | 'wrong-pin';
 export function switchRole(next: Role, pin?: string): SwitchResult {
   const current = readRole();
   if (next === 'owner' && current !== 'owner') {
-    const expected = loadData().settings.ownerPin;
-    if (expected) {
+    const settings = loadData().settings;
+    if (settings.ownerPin) {
       if (pin === undefined) return 'pin-required';
-      if (pin !== expected) return 'wrong-pin';
+      if (pin !== settings.ownerPin) return 'wrong-pin';
+    } else if (settings.ownerPinSet && !state.ownerPin) {
+      return 'pin-required';
     }
   }
   write(next);
+  if (next !== 'owner') lockOwner();
   return 'ok';
 }
 
