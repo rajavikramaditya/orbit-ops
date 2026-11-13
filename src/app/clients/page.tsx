@@ -3,14 +3,14 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Download } from 'lucide-react';
-import { useStore, update, uid, sum, inr, monthLabel, type Client, type Health } from '@/lib/store';
+import { useStore, update, uid, sum, inr, pendency, cycleStartDayOf, clientCycle, clampCycleDay, formatDay, type Client, type Health } from '@/lib/store';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Input, Select, Field, Textarea, Segmented, HealthBadge, Avatar, ProgressBar, EmptyState, Sheet } from '@/components/ui';
 
 type Filter = 'all' | 'watch' | 'risk' | 'bin';
 
-const blank = { name: '', package: '8 videos / month', videosPromised: 8, owner: '', industry: '', city: 'Orai', notes: '', monthlyFee: '', phone: '', contactName: '' };
+const blank = { name: '', package: '8 videos / month', videosPromised: 8, owner: '', industry: '', city: 'Orai', notes: '', monthlyFee: '', phone: '', contactName: '', cycleStartDay: Math.min(new Date().getDate(), 28) };
 
 export default function ClientsPage() {
   const data = useStore();
@@ -43,7 +43,7 @@ export default function ClientsPage() {
     return filtered.sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'fee') return (b.monthlyFee || 0) - (a.monthlyFee || 0);
-      return rank[a.health] - rank[b.health] || a.name.localeCompare(b.name);
+      return pendency(b).gap - pendency(a).gap || rank[a.health] - rank[b.health] || a.name.localeCompare(b.name);
     });
   }, [active, churned, filter, query, owner, sort]);
 
@@ -55,6 +55,8 @@ export default function ClientsPage() {
       industry: form.industry.trim(), city: form.city.trim(), notes: form.notes.trim(),
       onboardedOn: new Date().toISOString().slice(0, 10), monthlyFee: form.monthlyFee ? +form.monthlyFee : undefined,
       phone: form.phone.trim() || undefined, contactName: form.contactName.trim() || undefined,
+      cycleStartDay: clampCycleDay(form.cycleStartDay),
+      cycleMonth: clientCycle(clampCycleDay(form.cycleStartDay)).key,
     };
     update(d => { d.clients.unshift(c); });
     toast(`${c.name} added`);
@@ -63,9 +65,10 @@ export default function ClientsPage() {
   };
 
   const exportCSV = () => {
-    const rows = [['Name', 'Status', 'Health', 'Package', 'Owner', 'City', 'Onboarded', 'Monthly Fee', 'Posted', 'Promised', ...(isOwner ? ['Received', 'Spent'] : [])]];
+    const rows = [['Name', 'Status', 'Health', 'Package', 'Owner', 'City', 'Onboarded', 'Cycle starts', 'Behind', 'Monthly Fee', 'Posted', 'Promised', ...(isOwner ? ['Received', 'Spent'] : [])]];
     active.forEach(c => {
-      const base = [c.name, c.status, c.health, c.package, c.owner, c.city, c.onboardedOn, String(c.monthlyFee || ''), String(c.videosPosted), String(c.videosPromised)];
+      const p = pendency(c);
+      const base = [c.name, c.status, c.health, c.package, c.owner, c.city, c.onboardedOn, String(cycleStartDayOf(c)), String(p.gap), String(c.monthlyFee || ''), String(c.videosPosted), String(c.videosPromised)];
       rows.push(isOwner ? [...base, String(sum(c.payments)), String(sum(c.expenses))] : base);
     });
     const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -126,6 +129,8 @@ export default function ClientsPage() {
         {list.map(c => {
           const received = sum(c.payments);
           const spent = sum(c.expenses);
+          const pace = pendency(c);
+          const paceText = pace.gap > 0 ? `${pace.gap} behind` : pace.gap < 0 ? `${-pace.gap} ahead` : 'on pace';
           return (
             <Link key={c.id} href={`/clients/${c.id}`}>
               <Card className="p-4 hover:border-foreground/20 transition-colors h-full">
@@ -143,8 +148,8 @@ export default function ClientsPage() {
                   <>
                     <ProgressBar value={c.videosPosted} max={c.videosPromised} tone={c.health} className="mt-3" />
                     <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="tabular-nums">{c.videosPosted}/{c.videosPromised} this month</span>
-                      <span>Since {monthLabel(c.onboardedOn.slice(0, 7))}</span>
+                      <span className="tabular-nums">{c.videosPosted}/{c.videosPromised} · {paceText}</span>
+                      <span>Cycle {formatDay(pace.cycle.start)}</span>
                     </div>
                   </>
                 )}
@@ -166,6 +171,7 @@ export default function ClientsPage() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Package"><Input value={form.package} onChange={e => setForm({ ...form, package: e.target.value })} /></Field>
             <Field label="Videos / month"><Input type="number" min={1} value={form.videosPromised} onChange={e => setForm({ ...form, videosPromised: +e.target.value })} /></Field>
+            <Field label="Month starts on"><Input type="number" min={1} max={28} required value={form.cycleStartDay} onChange={e => setForm({ ...form, cycleStartDay: +e.target.value })} /></Field>
             <Field label="Account owner">
               <Select value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })}>
                 <option value="">Unassigned</option>
@@ -178,6 +184,7 @@ export default function ClientsPage() {
             <Field label="City"><Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></Field>
             <Field label="Industry"><Input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} /></Field>
           </div>
+          <p className="text-[11px] text-muted-foreground">Work owed is counted from this date every month, not from the 1st. The same date shows on the card.</p>
           <Field label="Notes"><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></Field>
         </form>
       </Sheet>

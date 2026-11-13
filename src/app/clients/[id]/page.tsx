@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Phone, Plus, Minus, Pencil, Trash2, ExternalLink } from 'lucide-react';
-import { useStore, update, uid, touch, logActivity, sum, inr, fmtDate, monthLabel, daysSince, expectedByNow, today, type Client, type Payment, type Expense, type Stage } from '@/lib/store';
+import { useStore, update, uid, touch, logActivity, sum, inr, fmtDate, monthLabel, daysSince, pendency, cycleStartDayOf, clientCycle, clampCycleDay, formatDay, today, type Client, type Payment, type Expense, type Stage } from '@/lib/store';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { Card, Button, Badge, HealthBadge, Avatar, ProgressBar, Field, Input, Select, Textarea, EmptyState, Sheet, SectionTitle, Segmented } from '@/components/ui';
@@ -40,8 +40,8 @@ export default function ClientDetailPage() {
   const tasks = data.tasks.filter(t => t.clientId === id);
   const received = sum(client.payments);
   const spent = sum(client.expenses);
-  const expected = expectedByNow(client.videosPromised);
-  const gap = expected - client.videosPosted;
+  const pace = pendency(client);
+  const gap = pace.gap;
 
   const setStatus = (status: Client['status']) => {
     if (status === 'Churned' && !confirm(`${client.name} will move to the Bin. Continue?`)) return;
@@ -79,6 +79,7 @@ export default function ClientDetailPage() {
         owner: form.owner ?? c.owner,
         monthlyFee: form.monthlyFee || undefined,
         onboardedOn: form.onboardedOn ?? c.onboardedOn,
+        cycleStartDay: clampCycleDay(form.cycleStartDay ?? cycleStartDayOf(c)),
         notes: form.notes ?? c.notes,
         contactName: form.contactName?.trim() || undefined,
         phone: form.phone?.trim() || undefined,
@@ -86,7 +87,10 @@ export default function ClientDetailPage() {
         industry: form.industry ?? c.industry,
         city: form.city ?? c.city,
       });
-      logActivity(d, id, 'Client details updated');
+      const day = clampCycleDay(c.cycleStartDay ?? cycleStartDayOf(c));
+      c.cycleStartDay = day;
+      c.cycleMonth = clientCycle(day).key;
+      logActivity(d, id, `Client details updated · month starts on the ${day}`);
       touch(d, id);
     });
     setEditing(false);
@@ -207,19 +211,20 @@ export default function ClientDetailPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">This month</p>
+          <p className="text-xs text-muted-foreground">This cycle</p>
           <div className="flex items-center gap-2 mt-1">
             <button onClick={() => adjustPosted(-1)} aria-label="Decrease" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Minus className="h-3.5 w-3.5" /></button>
             <p className="text-xl font-semibold tabular-nums flex-1 text-center">{client.videosPosted}<span className="text-muted-foreground text-sm">/{client.videosPromised}</span></p>
             <button onClick={() => adjustPosted(1)} aria-label="Increase" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Plus className="h-3.5 w-3.5" /></button>
           </div>
           <ProgressBar value={client.videosPosted} max={client.videosPromised} tone={client.health} className="mt-2" />
-          <p className="text-[11px] text-muted-foreground mt-1.5">{gap > 0 ? `${gap} behind today's pace` : gap === 0 ? 'Exactly on pace' : `${-gap} ahead of pace`}</p>
+          <p className="text-[11px] text-muted-foreground mt-1.5">{gap > 0 ? `${gap} behind pace` : gap === 0 ? 'Exactly on pace' : `${-gap} ahead of pace`}</p>
+          <p className="text-[11px] text-muted-foreground">Cycle {formatDay(pace.cycle.start)} – {formatDay(pace.cycle.end)} · {pace.daysLeft}d left</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Monthly fee</p>
           <p className="text-xl font-semibold tabular-nums mt-1">{client.monthlyFee ? inr(client.monthlyFee) : '—'}</p>
-          <p className="text-[11px] text-muted-foreground mt-1">Since {fmtDate(client.onboardedOn, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Client since {fmtDate(client.onboardedOn, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Last activity</p>
@@ -255,7 +260,7 @@ export default function ClientDetailPage() {
           <Card className="p-5">
             <SectionTitle>Cycle history</SectionTitle>
             {(client.history || []).length === 0
-              ? <p className="text-sm text-muted-foreground">History starts when the next month rolls over. This month&apos;s count resets automatically on the 1st.</p>
+              ? <p className="text-sm text-muted-foreground">History starts when this client&apos;s next cycle begins. The count resets on day {cycleStartDayOf(client)} of their month, not on the 1st.</p>
               : <div className="space-y-2">
                   {(client.history || []).map(h => {
                     const pct = h.promised > 0 ? Math.round((h.posted / h.promised) * 100) : 0;
@@ -361,6 +366,7 @@ export default function ClientDetailPage() {
             <Field label="Phone"><Input value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} inputMode="tel" /></Field>
             <Field label="Instagram"><Input value={form.instagram || ''} onChange={e => setForm({ ...form, instagram: e.target.value })} placeholder="@handle" /></Field>
             <Field label="Onboarded"><Input type="date" value={form.onboardedOn || ''} onChange={e => setForm({ ...form, onboardedOn: e.target.value })} /></Field>
+            <Field label="Month starts on"><Input type="number" min={1} max={28} value={form.cycleStartDay ?? cycleStartDayOf(client)} onChange={e => setForm({ ...form, cycleStartDay: +e.target.value })} /></Field>
             <Field label="City"><Input value={form.city || ''} onChange={e => setForm({ ...form, city: e.target.value })} /></Field>
             <Field label="Industry"><Input value={form.industry || ''} onChange={e => setForm({ ...form, industry: e.target.value })} /></Field>
           </div>

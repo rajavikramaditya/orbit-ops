@@ -8,8 +8,8 @@ import { StoreBootstrap } from "@/components/store-bootstrap";
 const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
-  title: "Orbit Ops — Orbit Media by Orbitcore",
-  description: "Internal operations for Orbit Media. What must we do today?",
+  title: "Orbit Ops",
+  description: "What must we do today?",
   appleWebApp: { capable: true, statusBarStyle: "black", title: "Orbit Ops" },
 };
 

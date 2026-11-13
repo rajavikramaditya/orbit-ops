@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Orbit Ops — Orbit Media by Orbitcore',
+    name: 'Orbit Ops',
     short_name: 'Orbit Ops',
-    description: 'Internal operations for Orbit Media. What must we do today?',
+    description: 'What must we do today?',
     start_url: '/today',
     display: 'standalone',
     background_color: '#ffffff',
