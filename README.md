@@ -84,7 +84,7 @@ Those can be connected later. Orbit Ops stays focused on operations: delivery, r
 
 Each client's month opens on their own date, and pendency is paced across that cycle rather than the calendar month.
 
-Records are stored in Neon Postgres when the deployment has a database. The browser keeps a local copy and asks for a team access key. Payments, expenses and the Owner PIN are stored apart from the shared document and are only returned to a request that presents the current PIN. Without `DATABASE_URL` and `ORBIT_ACCESS_KEY` the app keeps using this browser only, so a deploy is safe before the store exists.
+Records are stored in Neon Postgres when the deployment has a database. The browser keeps a local copy and asks for a team access key. Payments, expenses and the Owner PIN are stored apart from the shared document and are only returned to a request that presents the current PIN. Five wrong PIN tries close payments for 15 minutes. Without `DATABASE_URL` and `ORBIT_ACCESS_KEY` the app keeps using this browser only, so a deploy is safe before the store exists.
 
 Design is intentionally restrained — black, white, and clear type — so it feels like office software rather than a marketing site.
 

@@ -14,6 +14,7 @@ type StateResponse = {
   empty?: boolean;
   owner?: boolean;
   paymentsRejected?: boolean;
+  pinLocked?: boolean;
   data?: AppData;
   error?: string;
 };
@@ -84,6 +85,7 @@ function headers(pin = state.ownerPin) {
 async function request(method: 'GET' | 'PUT', body?: AppData, pin = state.ownerPin): Promise<StateResponse | null> {
   const res = await fetch('/api/state', { method, headers: headers(pin), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
   if (res.status === 401) return { mode: 'remote' };
+  if (res.status === 429) return res.json() as Promise<StateResponse>;
   if (res.status === 500) return { mode: 'remote', error: 'database' };
   if (!res.ok && res.status !== 409) return null;
   return res.json() as Promise<StateResponse>;
@@ -132,7 +134,7 @@ async function flush() {
   try {
     const sending = attachPending(data);
     const res = await request('PUT', sending);
-    if (!res || res.mode !== 'remote' || !res.data) return;
+    if (!res || res.mode !== 'remote' || !res.data || res.pinLocked) return;
     if (sending.settings.ownerPin && res.owner) state.ownerPin = sending.settings.ownerPin;
     if (res.owner) localStorage.removeItem(PENDING_MONEY);
     if (res.paymentsRejected) { rememberPending(sending); cloud.migrateOffer = true; }
@@ -188,13 +190,14 @@ export function forgetAccessKey() {
 }
 
 /** Check the Owner PIN with the server and load payments into this tab. */
-export async function unlockOwner(pin: string) {
+export async function unlockOwner(pin: string): Promise<'ok' | 'locked' | 'no'> {
   const res = await request('GET', undefined, pin.trim());
-  if (!res?.owner || !res.data) return false;
+  if (res?.pinLocked) return 'locked';
+  if (!res?.owner || !res.data) return 'no';
   state.ownerPin = pin.trim();
   apply(res.data);
   emit();
-  return true;
+  return 'ok';
 }
 
 export function lockOwner() {
@@ -209,7 +212,7 @@ export async function migrateBrowser() {
   cloud.latest = null;
   const sending = attachPending(data);
   const res = await request('PUT', sending);
-  if (!res || res.mode !== 'remote' || !res.data) return 'failed' as const;
+  if (!res || res.mode !== 'remote' || !res.data || res.pinLocked) return 'failed' as const;
   if (sending.settings.ownerPin && res.owner) state.ownerPin = sending.settings.ownerPin;
   if (res.owner) localStorage.removeItem(PENDING_MONEY);
   if (res.paymentsRejected) rememberPending(sending);

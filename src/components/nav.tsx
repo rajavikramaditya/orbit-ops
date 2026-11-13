@@ -155,7 +155,8 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
     const settings = loadData().settings;
     if (settings.ownerPinSet && !settings.ownerPin) {
       const ok = await unlockOwner(pin);
-      if (!ok) { setErr('Wrong PIN'); return; }
+      if (ok === 'locked') { setErr('Too many tries. Wait 15 minutes.'); return; }
+      if (ok !== 'ok') { setErr('Wrong PIN'); return; }
     }
     const res = switchRole('owner', pin);
     if (res === 'ok') { setOpen(false); setPin(''); setErr(''); toast('Owner unlocked'); }
