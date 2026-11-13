@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { hydrate } from '@/lib/store';
+import '@/lib/sync';
 
 /**
  * Reads localStorage into the store before the rest of the tree renders, so the

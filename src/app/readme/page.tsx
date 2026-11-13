@@ -40,7 +40,7 @@ export default function ReadmePage() {
 
       <section>
         <h2 className="font-medium mb-2">Your data</h2>
-        <p className="text-muted-foreground">Everything is stored in this browser, so it works offline and stays private. It does not sync between phones on its own. Download a backup from Settings regularly, and restore that file on any other device to carry the data across. Two tabs on the same device stay in sync automatically.</p>
+        <p className="text-muted-foreground">When the database is connected, open the browser that already has your clients and choose Save to database. Other phones then ask for the team access key and load the same records. Payments and expenses are not sent to a device until the Owner PIN is entered there. Until a database is connected, everything stays in this browser: download a backup from Settings before clearing it.</p>
       </section>
 
       <section>

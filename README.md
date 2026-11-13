@@ -66,7 +66,7 @@ Churned clients move to Bin and leave the active list.
 - **Manager** — Day-to-day client and content ownership
 - **Team** — Assigned work
 
-Authentication and row-level permissions will come with the Supabase backend. Until then the app runs on local data for the team that uses it.
+The team shares one access key. Payments stay behind the Owner PIN. There is no separate login for each person.
 
 ---
 
@@ -82,9 +82,22 @@ Those can be connected later. Orbit Ops stays focused on operations: delivery, r
 
 ## Current state
 
-Each client's month opens on their own date, and pendency is paced across that cycle rather than the calendar month. This version uses local storage so the team can start using the workflow immediately. The data model and screens are shaped for a later move to a private database on orbitcore.in, with auth, so the same records are available on every device.
+Each client's month opens on their own date, and pendency is paced across that cycle rather than the calendar month.
+
+Records are stored in Neon Postgres when the deployment has a database. The browser keeps a local copy and asks for a team access key. Payments, expenses and the Owner PIN are stored apart from the shared document and are only returned to a request that presents the current PIN. Without `DATABASE_URL` and `ORBIT_ACCESS_KEY` the app keeps using this browser only, so a deploy is safe before the store exists.
 
 Design is intentionally restrained — black, white, and clear type — so it feels like office software rather than a marketing site.
+
+## Database
+
+On the Vercel project, create a **Neon Postgres** store (Storage → Neon) and add one secret:
+
+| Name | Where it comes from |
+| --- | --- |
+| `DATABASE_URL` | Set automatically when the Neon store is connected to this project. Use the pooled URL. |
+| `ORBIT_ACCESS_KEY` | A password you choose, at least 8 characters. Add it under Settings → Environment Variables for Production. The app asks for it once per browser. |
+
+Redeploy after both are present. Open the browser that already has the clients and press **Save to database**. Set an Owner PIN before that if payments should move too; without a PIN the server stores the work and leaves payments on that browser. Other devices enter the same access key and then the Owner PIN to see payments.
 
 ---
 

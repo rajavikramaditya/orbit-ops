@@ -3,12 +3,14 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, ShieldCheck, Building2, TriangleAlert } from 'lucide-react';
 import { useStore, update, exportJSON, replaceAll, resetToSeed } from '@/lib/store';
+import { useCloud } from '@/lib/sync';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, SectionTitle } from '@/components/ui';
 
 export default function SettingsPage() {
   const data = useStore();
+  const cloud = useCloud();
   const { isOwner } = useRole();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -65,7 +67,13 @@ export default function SettingsPage() {
 
       <Card className="p-5 space-y-4">
         <SectionTitle><span className="inline-flex items-center gap-1.5"><Download className="h-3.5 w-3.5" /> Backup & restore</span></SectionTitle>
-        <p className="text-sm text-muted-foreground -mt-2">Data lives in this browser only. Download a backup regularly and keep it in Drive. Restore that file on another phone or laptop to move your data there.</p>
+        <p className="text-sm text-muted-foreground -mt-2">
+          {cloud.mode === 'remote'
+            ? 'Records are saved to the database for every device that has the team key. Payments stay on the server until the Owner PIN is entered on this device.'
+            : cloud.mode === 'local'
+              ? 'This deployment has no database yet, so records stay in this browser. Download a backup before clearing it.'
+              : 'Checking where records are stored.'}
+        </p>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
           {counts.map(([k, v]) => (
             <div key={k} className="rounded-xl bg-muted px-2 py-2.5">
@@ -85,13 +93,13 @@ export default function SettingsPage() {
         <SectionTitle><span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Owner PIN</span></SectionTitle>
         <p className="text-sm text-muted-foreground -mt-2">
           Payments, expenses and revenue are visible only to the Owner role. A PIN makes switching to Owner require it.
-          {data.settings.ownerPin ? ' A PIN is currently set.' : ' No PIN is set, so anyone using this device can switch to Owner.'}
+          {(data.settings.ownerPin || data.settings.ownerPinSet) ? ' A PIN is currently set.' : ' No PIN is set, so anyone using this device can switch to Owner.'}
         </p>
         {isOwner ? (
           <form onSubmit={savePin} className="flex flex-wrap gap-2 items-end">
             <Field label="New PIN" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" placeholder="At least 4 digits" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} /></Field>
             <Field label="Repeat" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" value={pin2} onChange={e => setPin2(e.target.value.replace(/\D/g, ''))} /></Field>
-            <Button type="submit" variant="primary">{data.settings.ownerPin ? 'Change PIN' : 'Set PIN'}</Button>
+            <Button type="submit" variant="primary">{(data.settings.ownerPin || data.settings.ownerPinSet) ? 'Change PIN' : 'Set PIN'}</Button>
             {data.settings.ownerPin && <Button variant="ghost" type="button" onClick={() => { if (confirm('Remove the Owner PIN? Anyone will be able to switch to Owner and see payments.')) { update(d => { delete d.settings.ownerPin; }); toast('PIN removed'); } }}>Remove</Button>}
           </form>
         ) : (
