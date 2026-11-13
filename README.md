@@ -1,6 +1,6 @@
 # Orbit Ops
 
-**Internal operations system for Orbit Media by Orbitcore.**
+**Internal operations for Orbit Ops.**
 
 Orbit Ops is the single place where the team answers one question every morning:
 
@@ -82,10 +82,10 @@ Those can be connected later. Orbit Ops stays focused on operations: delivery, r
 
 ## Current state
 
-This version uses local storage so the team can start using the workflow immediately. The data model and screens are shaped for a later move to Supabase with proper auth and real-time sync.
+Each client's month opens on their own date, and pendency is paced across that cycle rather than the calendar month. This version uses local storage so the team can start using the workflow immediately. The data model and screens are shaped for a later move to a private database on orbitcore.in, with auth, so the same records are available on every device.
 
 Design is intentionally restrained — black, white, and clear type — so it feels like office software rather than a marketing site.
 
 ---
 
-Orbit Media · Orai · orbitcore.in
+Orbit Ops · Orai · orbitcore.in

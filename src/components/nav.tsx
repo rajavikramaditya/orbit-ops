@@ -67,11 +67,8 @@ export function Nav() {
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between gap-3 border-b px-4 py-2.5 bg-card/90 backdrop-blur sticky top-0 z-40">
         <Link href="/today" className="flex items-center gap-2.5">
-          <Image src="/logo.svg" alt="Orbit Media" width={34} height={34} className="object-contain dark:invert" priority />
-          <div>
-            <p className="font-semibold text-sm leading-none">Orbit Ops</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Orbit Media by Orbitcore</p>
-          </div>
+          <Image src="/logo.svg" alt="" width={34} height={34} className="object-contain" priority />
+          <p className="font-semibold text-sm leading-none">Orbit Ops</p>
         </Link>
         <RoleSwitcher compact />
       </header>
@@ -79,11 +76,8 @@ export function Nav() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 shrink-0 flex-col border-r bg-card p-4 sticky top-0 h-screen">
         <Link href="/today" className="mb-6 flex items-center gap-3 px-1">
-          <Image src="/logo.svg" alt="Orbit Media" width={40} height={40} className="object-contain dark:invert" priority />
-          <div>
-            <h1 className="text-base font-semibold tracking-tight leading-none">Orbit Ops</h1>
-            <p className="text-[11px] text-muted-foreground mt-1">Orbit Media by Orbitcore</p>
-          </div>
+          <Image src="/logo.svg" alt="" width={40} height={40} className="object-contain" priority />
+          <h1 className="text-base font-semibold tracking-tight leading-none">Orbit Ops</h1>
         </Link>
         <nav className="flex-1 space-y-5 overflow-y-auto">
           {groups.map(g => {

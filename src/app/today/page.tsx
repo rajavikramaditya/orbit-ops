@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CalendarClock, Inbox, Moon, CheckCircle2, Plus } from 'lucide-react';
-import { useStore, update, touch, uid, today, expectedByNow, daysSince, clientName, inr, fmtDate, isOverdue, sum, type Task, type RequestItem } from '@/lib/store';
+import { useStore, update, touch, uid, today, pendency, formatDay, daysSince, clientName, inr, fmtDate, isOverdue, sum, type Task, type RequestItem } from '@/lib/store';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Stat, SectionTitle, HealthBadge, PriorityBadge, ProgressBar, EmptyState, Sheet, Field, Input, Select, Textarea } from '@/components/ui';
@@ -18,7 +18,7 @@ export default function TodayPage() {
 
   const day = today();
   const active = data.clients.filter(c => c.status === 'Active');
-  const behind = active.filter(c => c.videosPosted < expectedByNow(c.videosPromised) - 1);
+  const behind = active.filter(c => pendency(c).gap > 1);
   const atRisk = data.clients.filter(c => c.status !== 'Churned' && c.health === 'red');
   const quiet = active.filter(c => daysSince(c.lastActivityAt) >= 5).sort((a, b) => daysSince(b.lastActivityAt) - daysSince(a.lastActivityAt));
   const newRequests = data.requests.filter(r => r.status === 'new');
@@ -93,14 +93,14 @@ export default function TodayPage() {
       )}
 
       <section>
-        <SectionTitle right={<span className="text-xs text-muted-foreground">Expected by today, paced across the month</span>}>Monthly delivery</SectionTitle>
+        <SectionTitle right={<span className="text-xs text-muted-foreground">Paced across each client&apos;s own month</span>}>Monthly delivery</SectionTitle>
         <div className="grid sm:grid-cols-2 gap-3">
           {active
             .slice()
-            .sort((a, b) => (expectedByNow(b.videosPromised) - b.videosPosted) - (expectedByNow(a.videosPromised) - a.videosPosted))
+            .sort((a, b) => pendency(b).gap - pendency(a).gap)
             .map(c => {
-              const expectedNow = expectedByNow(c.videosPromised);
-              const gap = expectedNow - c.videosPosted;
+              const pace = pendency(c);
+              const gap = pace.gap;
               return (
                 <Link key={c.id} href={`/clients/${c.id}`}>
                   <Card className="p-4 hover:border-foreground/20 transition-colors h-full">
@@ -111,7 +111,7 @@ export default function TodayPage() {
                     <ProgressBar value={c.videosPosted} max={c.videosPromised} tone={c.health} />
                     <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                       <HealthBadge health={c.health} />
-                      <span>{gap > 0 ? `${gap} behind pace` : gap === 0 ? 'On pace' : `${-gap} ahead`}</span>
+                      <span>{gap > 0 ? `${gap} behind` : gap === 0 ? 'On pace' : `${-gap} ahead`} · Cycle {formatDay(pace.cycle.start)}</span>
                     </div>
                   </Card>
                 </Link>

@@ -54,6 +54,8 @@ export interface Client {
   phone?: string;
   instagram?: string;
   cycleMonth?: string;
+  /** Day of the month (1–28) this client's delivery cycle starts. Pendency is counted from here, not from the 1st. */
+  cycleStartDay?: number;
   history?: CycleRecord[];
   payments?: Payment[];
   expenses?: Expense[];
@@ -166,35 +168,104 @@ const seed = (): AppData => ({
   requests: [],
   content: [],
   team: seedTeam(),
-  settings: { companyName: 'Orbit Media by Orbitcore', currency: 'INR' },
+  settings: { companyName: 'Orbit Ops', currency: 'INR' },
 });
 
 // Server render and first client paint share this so hydration matches.
-const EMPTY: AppData = { version: 3, clients: [], tasks: [], requests: [], content: [], team: [], settings: { companyName: 'Orbit Media by Orbitcore', currency: 'INR' } };
+const EMPTY: AppData = { version: 3, clients: [], tasks: [], requests: [], content: [], team: [], settings: { companyName: 'Orbit Ops', currency: 'INR' } };
 
 // ---------- Health & cycle ----------
 
 export const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 
-export function monthProgress(d = new Date()) {
-  const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  return { day: d.getDate(), daysInMonth: dim, fraction: d.getDate() / dim };
+/** 1–28. Day 29–31 would skip February, so the cycle day never goes past 28. */
+export function clampCycleDay(n: number) {
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(28, Math.max(1, Math.round(n)));
 }
 
-/** Videos that should be posted by today if delivery were evenly paced. */
-export function expectedByNow(promised: number) {
-  return Math.round(promised * monthProgress().fraction);
+/** The day this client's month begins. Falls back to the onboarded day, then the 1st. */
+export function cycleStartDayOf(c: Pick<Client, 'cycleStartDay' | 'onboardedOn'>): number {
+  if (c.cycleStartDay) return clampCycleDay(c.cycleStartDay);
+  const fromOnboard = Number((c.onboardedOn || '').slice(8, 10));
+  return clampCycleDay(fromOnboard || 1);
 }
 
-export function computeHealth(c: Client): Health {
+export type CycleWindow = {
+  /** YYYY-MM-DD the current cycle opened. */
+  key: string;
+  start: Date;
+  end: Date;
+  /** 1-based day inside the cycle. */
+  day: number;
+  length: number;
+  fraction: number;
+};
+
+function localDate(y: number, m: number, d: number) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** The client's current delivery window, opening on `startDay` rather than the 1st. */
+export function clientCycle(startDay: number, now = new Date()): CycleWindow {
+  const day = clampCycleDay(startDay);
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const start = now.getDate() >= day ? new Date(y, m, day) : new Date(y, m - 1, day);
+  const next = new Date(start.getFullYear(), start.getMonth() + 1, day);
+  const end = new Date(next.getFullYear(), next.getMonth(), next.getDate() - 1);
+  const length = Math.round((next.getTime() - start.getTime()) / 86400000);
+  const elapsed = Math.floor((new Date(y, m, now.getDate()).getTime() - new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) / 86400000) + 1;
+  const dayIndex = Math.min(Math.max(elapsed, 1), length);
+  return {
+    key: localDate(start.getFullYear(), start.getMonth(), start.getDate()),
+    start,
+    end,
+    day: dayIndex,
+    length,
+    fraction: dayIndex / length,
+  };
+}
+
+export function formatDay(d: Date) {
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+export type Pendency = {
+  cycle: CycleWindow;
+  /** Videos that should already be posted if delivery were even across this cycle. */
+  expected: number;
+  /** Positive when behind that pace, negative when ahead. */
+  gap: number;
+  /** Videos still owed before the cycle ends. */
+  remaining: number;
+  daysLeft: number;
+};
+
+export function pendency(c: Pick<Client, 'cycleStartDay' | 'onboardedOn' | 'videosPromised' | 'videosPosted'>, now = new Date()): Pendency {
+  const cycle = clientCycle(cycleStartDayOf(c), now);
+  const expected = Math.round(c.videosPromised * cycle.fraction);
+  return {
+    cycle,
+    expected,
+    gap: expected - c.videosPosted,
+    remaining: Math.max(0, c.videosPromised - c.videosPosted),
+    daysLeft: Math.max(0, cycle.length - cycle.day),
+  };
+}
+
+/** Videos that should be posted by today if delivery were evenly paced across the client's cycle. */
+export function expectedByNow(c: Pick<Client, 'cycleStartDay' | 'onboardedOn' | 'videosPromised' | 'videosPosted'>, now = new Date()) {
+  return pendency(c, now).expected;
+}
+
+export function computeHealth(c: Client, now = new Date()): Health {
   if (c.status === 'Churned') return 'green';
   const quiet = daysSince(c.lastActivityAt);
   if (c.status === 'Paused' || c.status === 'Onboarding') return quiet >= 10 ? 'amber' : 'green';
-  const { day } = monthProgress();
-  const expected = expectedByNow(c.videosPromised);
-  const gap = expected - c.videosPosted;
+  const { cycle, gap } = pendency(c, now);
   if (quiet >= 7) return 'red';
-  if (day > 7 && gap >= Math.max(3, c.videosPromised * 0.3)) return 'red';
+  if (cycle.day > 7 && gap >= Math.max(3, c.videosPromised * 0.3)) return 'red';
   if (quiet >= 4 || gap >= 2) return 'amber';
   return 'green';
 }
@@ -202,29 +273,35 @@ export function computeHealth(c: Client): Health {
 export const healthLabel = (h: Health) => (h === 'red' ? 'At risk' : h === 'amber' ? 'Watch' : 'On track');
 
 function rolloverCycles(data: AppData): boolean {
-  const month = currentMonth();
   let changed = false;
   for (const c of data.clients) {
-    if (!c.cycleMonth) {
-      c.cycleMonth = month;
+    const cycle = clientCycle(cycleStartDayOf(c));
+    const stored = c.cycleMonth;
+    // Missing, or the old calendar key (YYYY-MM): adopt the current cycle and keep the count.
+    if (!stored || /^\d{4}-\d{2}$/.test(stored)) {
+      c.cycleMonth = cycle.key;
       changed = true;
       continue;
     }
-    if (c.cycleMonth !== month) {
+    if (stored === cycle.key) continue;
+    // A stored start earlier than this cycle means that cycle has closed.
+    // A later start means the day was edited; keep the videos already posted.
+    if (stored < cycle.key) {
       if (c.status !== 'Churned') {
-        c.history = [{ month: c.cycleMonth, posted: c.videosPosted, promised: c.videosPromised }, ...(c.history || [])].slice(0, 24);
-        c.activity = [{ id: uid(), clientId: c.id, text: `New cycle started · ${monthLabel(month)} (last month ${c.videosPosted}/${c.videosPromised})`, at: new Date().toISOString() }, ...(c.activity || [])];
+        c.history = [{ month: stored, posted: c.videosPosted, promised: c.videosPromised }, ...(c.history || [])].slice(0, 24);
+        c.activity = [{ id: uid(), clientId: c.id, text: `New cycle started · ${formatDay(cycle.start)} (last cycle ${c.videosPosted}/${c.videosPromised})`, at: new Date().toISOString() }, ...(c.activity || [])];
       }
       c.videosPosted = 0;
-      c.cycleMonth = month;
-      changed = true;
     }
+    c.cycleMonth = cycle.key;
+    changed = true;
   }
   return changed;
 }
 
 export function monthLabel(ym: string) {
-  const [y, m] = ym.split('-').map(Number);
+  const [y, m, d] = ym.split('-').map(Number);
+  if (d) return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }
 
@@ -242,13 +319,16 @@ function migrate(raw: unknown): AppData {
   const list = <T,>(value: unknown, fallback: T[]): T[] => (Array.isArray(value) ? value as T[] : fallback);
   const data: AppData = {
     version: 3,
-    clients: list<Client>(d.clients, s.clients).map(c => ({ ...c })),
+    clients: list<Client>(d.clients, s.clients).map(c => ({ ...c, cycleStartDay: cycleStartDayOf(c) })),
     tasks: list<Task>(d.tasks, []).map(t => ({ ...t })),
     requests: list<RequestItem>(d.requests, []).map(r => ({ ...r })),
     content: list<ContentItem>(d.content, []).map(c => ({ ...c })),
     team: list<Member>(d.team, s.team).map(m => ({ ...m })),
     settings: { ...s.settings, ...(d.settings || {}) },
   };
+  if (!data.settings.companyName || data.settings.companyName === 'Orbit Media by Orbitcore') {
+    data.settings.companyName = 'Orbit Ops';
+  }
   if (!Array.isArray(d.team)) {
     try {
       const legacy = localStorage.getItem(LEGACY_TEAM_KEY);
