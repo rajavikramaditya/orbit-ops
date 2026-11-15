@@ -43,6 +43,23 @@ export default function RevenuePage() {
   const categories = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
   const maxCat = categories[0]?.[1] || 1;
 
+  const trend = useMemo(() => {
+    const out: { m: string; received: number; spent: number }[] = [];
+    const base = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      let received = 0, spent = 0;
+      for (const c of data.clients) {
+        for (const p of c.payments || []) if (inMonth(p.date, m)) received += p.amount;
+        for (const e of c.expenses || []) if (inMonth(e.date, m)) spent += e.amount;
+      }
+      out.push({ m, received, spent });
+    }
+    return out;
+  }, [data.clients]);
+  const trendMax = Math.max(1, ...trend.map(t => Math.max(t.received, t.spent)));
+
   const unpaid = rows.filter(r => r.fee > 0 && r.received < r.fee);
 
   const exportCSV = () => {
@@ -88,6 +105,21 @@ export default function RevenuePage() {
       <Card className="p-5">
         <SectionTitle right={<span className="text-xs tabular-nums text-muted-foreground">{collectionPct}%</span>}>Collection</SectionTitle>
         <ProgressBar value={totals.received} max={totals.fee || 1} tone={collectionPct >= 100 ? 'green' : collectionPct >= 50 ? 'amber' : 'red'} />
+      </Card>
+
+      <Card className="p-5">
+        <SectionTitle right={<span className="flex items-center gap-3 text-[11px] text-muted-foreground"><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-green" /> Received</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-red/70" /> Spent</span></span>}>Last 6 months</SectionTitle>
+        <div className="flex h-36 items-end gap-3 sm:gap-5" role="img" aria-label="Received and spent per month for the last six months">
+          {trend.map(t => (
+            <button key={t.m} type="button" onClick={() => setMonth(t.m)} className="group flex h-full flex-1 flex-col justify-end gap-1.5" title={`${monthLabel(t.m)} · received ${inr(t.received)} · spent ${inr(t.spent)}`}>
+              <div className="flex flex-1 items-end justify-center gap-1">
+                <div className="w-full max-w-5 rounded-t bg-green/80 group-hover:bg-green transition-colors" style={{ height: `${Math.max(2, (t.received / trendMax) * 100)}%` }} />
+                <div className="w-full max-w-5 rounded-t bg-red/50 group-hover:bg-red/70 transition-colors" style={{ height: `${Math.max(2, (t.spent / trendMax) * 100)}%` }} />
+              </div>
+              <span className={`text-[10px] text-center ${t.m === month ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{monthLabel(t.m).split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
       </Card>
 
       <section>

@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CalendarClock, Inbox, Moon, CheckCircle2, Plus, Hourglass, Users, Wallet, ShieldAlert, Copy, MessageCircle } from 'lucide-react';
-import { useStore, update, touch, uid, today, pendency, formatDay, daysSince, clientName, inr, fmtDate, isOverdue, sum, stuckContent, stageDays, memberLoad, dueNow, whatsappLink, daysSinceBackup, BACKUP_EVERY_DAYS, type Task, type RequestItem } from '@/lib/store';
+import { useStore, update, touch, uid, today, pendency, formatDay, daysSince, clientName, inr, fmtDate, isOverdue, stuckContent, stageDays, memberLoad, dueNow, whatsappLink, daysSinceBackup, BACKUP_EVERY_DAYS, type Task, type RequestItem } from '@/lib/store';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Stat, SectionTitle, HealthBadge, PriorityBadge, ProgressBar, EmptyState, Sheet, Field, Input, Select, Textarea } from '@/components/ui';
@@ -28,7 +28,7 @@ export default function TodayPage() {
   const dueToday = openTasks.filter(t => t.due === day);
 
   const expected = active.reduce((s, c) => s + (c.monthlyFee || 0), 0);
-  const received = active.reduce((s, c) => s + sum(c.payments), 0);
+  const received = active.reduce((s, c) => s + dueNow(c).paid, 0);
 
   const stuck = stuckContent(data);
   const load = data.team
@@ -67,7 +67,7 @@ export default function TodayPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <PageHeader
-        title="Today"
+        title={greeting()}
         subtitle={dateLabel}
         actions={
           <>
@@ -92,7 +92,7 @@ export default function TodayPage() {
         <Stat label="New requests" value={newRequests.length} tone={newRequests.length ? 'amber' : undefined} hint="Waiting to be triaged" />
         <Stat label="Behind pace" value={behind.length} tone={behind.length ? 'amber' : undefined} hint={`of ${active.length} active clients`} />
         {isOwner
-          ? <Stat label="Collected" value={inr(received)} hint={`${inr(expected)} expected this month`} />
+          ? <Stat label="Collected" value={inr(received)} hint={`${inr(expected)} expected this cycle`} />
           : <Stat label="At risk" value={atRisk.length} tone={atRisk.length ? 'red' : undefined} hint="Clients going quiet" />}
       </div>
 
@@ -218,6 +218,11 @@ export default function TodayPage() {
       <QuickSheet kind={quick} onClose={() => setQuick(null)} />
     </div>
   );
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
 function TaskRow({ task, client, onDone }: { task: Task; client?: string; onDone: () => void }) {

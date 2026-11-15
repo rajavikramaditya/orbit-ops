@@ -8,6 +8,7 @@
   --muted-foreground: #6b6b6b;
   --border: #e4e4e1;
   --ring: #0a0a0a;
+  --brand: #e3651f;
   --green: #15803d;
   --amber: #b45309;
   --red: #b91c1c;
@@ -42,6 +43,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
   --color-green: var(--green);
   --color-amber: var(--amber);
   --color-red: var(--red);
