@@ -123,8 +123,10 @@ export function Avatar({ name, className, size = 'md' }: { name: string; classNa
     .slice(0, 2)
     .map(w => w[0]?.toUpperCase())
     .join('');
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return (
-    <div className={cn('rounded-xl bg-muted text-muted-foreground flex items-center justify-center shrink-0 font-semibold', size === 'sm' ? 'h-8 w-8 text-[11px]' : size === 'lg' ? 'h-14 w-14 text-lg' : 'h-10 w-10 text-xs', className)}>
+    <div style={{ backgroundColor: `hsl(${h} 45% 50% / 0.14)`, color: `hsl(${h} 40% 38%)` }} className={cn('rounded-xl flex items-center justify-center shrink-0 font-semibold', size === 'sm' ? 'h-8 w-8 text-[11px]' : size === 'lg' ? 'h-14 w-14 text-lg' : 'h-10 w-10 text-xs', className)}>
       {initials || '?'}
     </div>
   );

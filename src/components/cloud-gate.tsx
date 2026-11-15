@@ -5,6 +5,7 @@ import { connectCloud, migrateBrowser, saveAccessKey, useCloud } from '@/lib/syn
 import { useToast } from '@/components/toast';
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, ShieldCheck, LayoutDashboard, Wallet, Film } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
+import { OrbitMark } from '@/components/orbit-mark';
 
 export function CloudGate({ children }: { children: React.ReactNode }) {
   const cloud = useCloud();
@@ -104,16 +105,6 @@ export function CloudGate({ children }: { children: React.ReactNode }) {
       )}
       {children}
     </>
-  );
-}
-
-function OrbitMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
-      <path d="M47.56 16.44 A22 22 0 1 1 37.69 10.75" stroke="currentColor" strokeWidth="8" fill="none" />
-      <path d="M0 -8 L11 0 L0 8 Z" transform="translate(37.69,10.75) rotate(15)" fill="currentColor" />
-      <circle cx="32" cy="32" r="9.5" fill="#E3651F" />
-    </svg>
   );
 }
 

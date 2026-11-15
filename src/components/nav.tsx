@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,6 +10,7 @@ import { unlockOwner } from '@/lib/sync';
 import { loadData, useStore, type Role } from '@/lib/store';
 import { Sheet, Button, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
+import { OrbitMark } from '@/components/orbit-mark';
 
 type Item = { href: string; label: string; icon: typeof Home; ownerOnly?: boolean };
 
@@ -68,17 +68,22 @@ export function Nav() {
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between gap-3 border-b px-4 py-2.5 bg-card/90 backdrop-blur sticky top-0 z-40">
         <Link href="/today" className="flex items-center gap-2.5">
-          <Image src="/logo.svg" alt="" width={34} height={34} className="object-contain" priority />
-          <p className="font-semibold text-sm leading-none">Orbit Ops</p>
+          <OrbitMark className="h-8 w-8 text-foreground" />
+          <p className="font-semibold text-sm leading-none tracking-tight">Orbit Ops</p>
         </Link>
         <RoleSwitcher compact />
       </header>
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 shrink-0 flex-col border-r bg-card p-4 sticky top-0 h-screen">
-        <Link href="/today" className="mb-6 flex items-center gap-3 px-1">
-          <Image src="/logo.svg" alt="" width={40} height={40} className="object-contain" priority />
-          <h1 className="text-base font-semibold tracking-tight leading-none">Orbit Ops</h1>
+        <Link href="/today" className="mb-7 flex items-center gap-3 px-1 pt-1">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background shadow-card">
+            <OrbitMark className="h-6 w-6 text-foreground" />
+          </span>
+          <div>
+            <h1 className="text-[15px] font-semibold tracking-tight leading-none">Orbit Ops</h1>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">by Orbitcore</p>
+          </div>
         </Link>
         <nav className="flex-1 space-y-5 overflow-y-auto">
           {groups.map(g => {
@@ -89,8 +94,8 @@ export function Nav() {
                 <p className="px-3 mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{g.title}</p>
                 <div className="space-y-0.5">
                   {items.map(l => (
-                    <Link key={l.href} href={l.href} className={cn('flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors', isActive(l.href) ? 'bg-foreground text-background font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}>
-                      <l.icon className="h-4 w-4" />
+                    <Link key={l.href} href={l.href} className={cn('flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors', isActive(l.href) ? 'bg-foreground text-background font-medium shadow-card' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}>
+                      <l.icon className={cn('h-4 w-4', isActive(l.href) && 'text-brand')} />
                       <span className="flex-1">{l.label}</span>
                       {badges[l.href] > 0 && <span className={cn('text-[10px] tabular-nums rounded-full px-1.5 py-0.5 font-medium', isActive(l.href) ? 'bg-background/20' : 'bg-muted')}>{badges[l.href]}</span>}
                     </Link>
@@ -169,7 +174,7 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
     <>
       <button onClick={() => setOpen(true)} className={cn('flex items-center gap-2 rounded-xl border bg-card text-sm hover:bg-muted transition-colors', compact ? 'px-2.5 py-1.5 text-xs' : 'w-full px-3 py-2')}>
         <span className={cn('h-2 w-2 rounded-full', role === 'owner' ? 'bg-green' : role === 'manager' ? 'bg-amber' : 'bg-muted-foreground')} />
-        <span className="flex-1 text-left">{ROLE_LABEL[role]}</span>
+        <span className="flex-1 text-left">{compact ? ROLE_LABEL[role] : <><span className="text-muted-foreground">Signed in as </span>{ROLE_LABEL[role]}</>}</span>
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
 
@@ -188,13 +193,19 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
           ))}
         </div>
         {needsPin && (
-          <form onSubmit={unlock} className="rounded-2xl bg-muted p-3 space-y-2">
-            <p className="text-xs text-muted-foreground">Enter the Owner PIN to unlock.</p>
-            <div className="flex gap-2">
-              <Input type="password" inputMode="numeric" autoComplete="off" placeholder="PIN" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setErr(''); }} className="flex-1" />
-              <Button type="submit" variant="primary">Unlock</Button>
+          <form onSubmit={unlock} className="rounded-2xl border bg-muted/60 p-4 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-card border"><Lock className="h-4 w-4" /></span>
+              <div>
+                <p className="text-sm font-medium leading-tight">Owner access is locked</p>
+                <p className="text-xs text-muted-foreground">Enter your PIN to see payments and revenue.</p>
+              </div>
             </div>
-            {err && <p className="text-xs text-red">{err}</p>}
+            <div className="flex gap-2">
+              <Input type="password" inputMode="numeric" autoComplete="off" placeholder="Owner PIN" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setErr(''); }} className="flex-1 h-11 text-center tracking-[0.4em]" />
+              <Button type="submit" variant="primary" className="h-11 px-5">Unlock</Button>
+            </div>
+            {err && <p role="alert" className="text-xs text-red">{err}</p>}
           </form>
         )}
       </Sheet>
