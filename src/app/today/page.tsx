@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CalendarClock, Inbox, Moon, CheckCircle2, Plus } from 'lucide-react';
-import { useStore, update, touch, uid, today, pendency, formatDay, daysSince, clientName, inr, fmtDate, isOverdue, sum, type Task, type RequestItem } from '@/lib/store';
+import { AlertTriangle, CalendarClock, Inbox, Moon, CheckCircle2, Plus, Hourglass, Users, Wallet, ShieldAlert, Copy, MessageCircle } from 'lucide-react';
+import { useStore, update, touch, uid, today, pendency, formatDay, daysSince, clientName, inr, fmtDate, isOverdue, sum, stuckContent, stageDays, memberLoad, dueNow, whatsappLink, daysSinceBackup, BACKUP_EVERY_DAYS, type Task, type RequestItem } from '@/lib/store';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Stat, SectionTitle, HealthBadge, PriorityBadge, ProgressBar, EmptyState, Sheet, Field, Input, Select, Textarea } from '@/components/ui';
@@ -15,6 +15,7 @@ export default function TodayPage() {
   const toast = useToast();
   const router = useRouter();
   const [quick, setQuick] = useState<'task' | 'request' | null>(null);
+  const backupAge = useSyncExternalStore(() => () => {}, daysSinceBackup, () => undefined);
 
   const day = today();
   const active = data.clients.filter(c => c.status === 'Active');
@@ -28,6 +29,26 @@ export default function TodayPage() {
 
   const expected = active.reduce((s, c) => s + (c.monthlyFee || 0), 0);
   const received = active.reduce((s, c) => s + sum(c.payments), 0);
+
+  const stuck = stuckContent(data);
+  const load = data.team
+    .map(m => ({ m, ...memberLoad(data, m.name) }))
+    .filter(x => x.open > 0)
+    .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
+  const dues = isOwner
+    ? active.map(c => ({ c, ...dueNow(c) })).filter(x => x.due > 0 && x.daysIn >= 5).sort((a, b) => b.due - a.due)
+    : [];
+  const duesTotal = dues.reduce((s, x) => s + x.due, 0);
+
+  const summary = () => {
+    const lines = [
+      `*${data.settings.companyName} · ${dateLabel}*`,
+      `Overdue tasks: ${overdue.length} · New requests: ${newRequests.length}`,
+      behind.length ? `Behind pace: ${behind.map(c => `${c.name} (${pendency(c).gap})`).join(', ')}` : 'Behind pace: none',
+      stuck.length ? `Stuck content: ${stuck.slice(0, 5).map(i => `${i.title} (${stageDays(i)}d ${i.stage})`).join(', ')}` : 'Stuck content: none',
+    ];
+    navigator.clipboard?.writeText(lines.join('\n')).then(() => toast('Summary copied for WhatsApp'), () => toast('Could not copy'));
+  };
 
   const complete = (id: string) => {
     update(d => {
@@ -50,6 +71,7 @@ export default function TodayPage() {
         subtitle={dateLabel}
         actions={
           <>
+            <Button size="sm" onClick={summary}><Copy className="h-3.5 w-3.5" /> Summary</Button>
             <Button size="sm" onClick={() => setQuick('request')}><Plus className="h-3.5 w-3.5" /> Request</Button>
             <Button size="sm" variant="primary" onClick={() => setQuick('task')}><Plus className="h-3.5 w-3.5" /> Task</Button>
           </>
@@ -57,6 +79,13 @@ export default function TodayPage() {
       >
         <p className="text-sm">{attention === 0 ? 'Nothing urgent. A good day to get ahead on content.' : `${attention} thing${attention > 1 ? 's' : ''} need${attention > 1 ? '' : 's'} attention before anything else.`}</p>
       </PageHeader>
+
+      {(backupAge === null || (typeof backupAge === 'number' && backupAge >= BACKUP_EVERY_DAYS)) && (
+        <Link href="/settings" className="flex items-start gap-2.5 rounded-xl border border-amber/40 bg-amber-soft px-4 py-3 text-sm">
+          <ShieldAlert className="h-4 w-4 text-amber mt-0.5 shrink-0" />
+          <span>Your data lives only in this browser. {backupAge === null ? 'No backup has been downloaded yet.' : `Last backup was ${backupAge} days ago.`} <span className="underline">Download one now</span>.</span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Overdue tasks" value={overdue.length} tone={overdue.length ? 'red' : undefined} hint={`${openTasks.length} open in total`} />
@@ -88,6 +117,54 @@ export default function TodayPage() {
           <SectionTitle right={<Link href="/requests" className="text-xs text-muted-foreground hover:text-foreground">All requests</Link>}><span className="inline-flex items-center gap-1.5"><Inbox className="h-3.5 w-3.5" /> New requests</span></SectionTitle>
           <Card>
             {newRequests.slice(0, 5).map(r => <RequestRow key={r.id} r={r} client={clientName(data, r.clientId)} />)}
+          </Card>
+        </section>
+      )}
+
+      {dues.length > 0 && (
+        <section>
+          <SectionTitle right={<span className="text-xs tabular-nums text-muted-foreground">{inr(duesTotal)} pending</span>}><span className="inline-flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Payments due</span></SectionTitle>
+          <Card>
+            {dues.slice(0, 6).map(({ c, due }) => (
+              <div key={c.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
+                <Link href={`/clients/${c.id}`} className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{c.name}</p>
+                  <p className="text-xs text-amber">{inr(due)} pending this cycle</p>
+                </Link>
+                {c.phone && <a href={whatsappLink(c.phone, `Hi ${c.contactName || ''}, gentle reminder: ${inr(due)} is pending for this month's work with ${data.settings.companyName}. Please share the payment update. Thank you!`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-muted shrink-0"><MessageCircle className="h-3 w-3" /> Remind</a>}
+              </div>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {stuck.length > 0 && (
+        <section>
+          <SectionTitle right={<Link href="/content" className="text-xs text-muted-foreground hover:text-foreground">Pipeline</Link>}><span className="inline-flex items-center gap-1.5"><Hourglass className="h-3.5 w-3.5" /> Stuck in pipeline</span></SectionTitle>
+          <Card>
+            {stuck.slice(0, 6).map(i => (
+              <Link key={i.id} href="/content" className="flex items-center justify-between gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{i.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{[clientName(data, i.clientId), i.assignee || 'Unassigned'].join(' · ')}</p>
+                </div>
+                <span className="text-xs text-amber shrink-0 capitalize">{stageDays(i)}d in {i.stage}</span>
+              </Link>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {load.length > 0 && (
+        <section>
+          <SectionTitle><span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Team load</span></SectionTitle>
+          <Card>
+            {load.slice(0, 6).map(({ m, open, overdue: od }) => (
+              <div key={m.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b last:border-b-0">
+                <p className="text-sm font-medium truncate">{m.name}</p>
+                <span className="text-xs text-muted-foreground shrink-0">{open} open{od > 0 && <span className="text-red"> · {od} overdue</span>}{open >= 8 && <span className="text-amber"> · heavy</span>}</span>
+              </div>
+            ))}
           </Card>
         </section>
       )}

@@ -81,7 +81,7 @@ export default function RequestsPage() {
         r.linkedTaskId = id;
       } else {
         const id = uid();
-        d.content.unshift({ id, clientId: r.clientId, title: conv.title.trim() || r.body, stage: conv.stage, assignee: conv.assignee, due: conv.due || undefined, createdAt: new Date().toISOString(), sourceRequestId: r.id });
+        d.content.unshift({ id, clientId: r.clientId, title: conv.title.trim() || r.body, stage: conv.stage, assignee: conv.assignee, due: conv.due || undefined, createdAt: new Date().toISOString(), stageAt: new Date().toISOString(), sourceRequestId: r.id });
         r.linkedContentId = id;
       }
       r.status = 'in-progress';

@@ -156,6 +156,7 @@ export default function ClientDetailPage() {
       if (!item || !c || item.stage === stage) return;
       const wasPosted = item.stage === 'posted';
       item.stage = stage;
+      item.stageAt = new Date().toISOString();
       if (stage === 'posted' && !wasPosted) { c.videosPosted += 1; item.postedAt = new Date().toISOString(); logActivity(d, id, `Posted: ${item.title}`); }
       if (wasPosted && stage !== 'posted') { c.videosPosted = Math.max(0, c.videosPosted - 1); item.postedAt = undefined; logActivity(d, id, `Moved back from posted: ${item.title}`); }
       touch(d, id);
