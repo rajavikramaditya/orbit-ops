@@ -88,6 +88,14 @@ Records are stored in Neon Postgres when the deployment has a database. The brow
 
 Design is intentionally restrained — black, white, and clear type — so it feels like office software rather than a marketing site.
 
+## Daily tools on Today
+
+- **Payments due** (Owner): clients with fee still pending this cycle, with a one-tap WhatsApp reminder.
+- **Stuck in pipeline**: content sitting 3+ days in one stage.
+- **Team load**: open and overdue work per person.
+- **Summary**: copies a short WhatsApp-ready status.
+- **Backup reminder**: while there is no database, data lives in one browser. Today warns when a backup is 7+ days old.
+
 ## Database
 
 On the Vercel project, create a **Neon Postgres** store (Storage → Neon) and add one secret:

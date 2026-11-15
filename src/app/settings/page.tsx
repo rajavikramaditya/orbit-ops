@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Download, Upload, ShieldCheck, Building2, TriangleAlert } from 'lucide-react';
-import { useStore, update, exportJSON, replaceAll, resetToSeed } from '@/lib/store';
+import { useStore, update, exportJSON, replaceAll, resetToSeed, markBackedUp } from '@/lib/store';
 import { useCloud } from '@/lib/sync';
 import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
@@ -26,6 +26,7 @@ export default function SettingsPage() {
     a.download = `orbit-ops-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    markBackedUp();
     toast('Backup downloaded');
   };
 

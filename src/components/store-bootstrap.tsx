@@ -11,7 +11,11 @@ import '@/lib/sync';
  */
 export function StoreBootstrap({ children }: { children: React.ReactNode }) {
   useState(() => {
-    if (typeof window !== 'undefined') hydrate();
+    if (typeof window !== 'undefined') {
+      hydrate();
+      // Ask the browser not to evict this data under storage pressure.
+      try { navigator.storage?.persist?.(); } catch {}
+    }
     return true;
   });
   return <>{children}</>;

@@ -25,7 +25,7 @@ export default function ContentPage() {
   const add = (e: React.FormEvent) => {
     e.preventDefault();
     update(d => {
-      d.content.unshift({ id: uid(), clientId: form.clientId, title: form.title.trim(), stage: form.stage, assignee: form.assignee, due: form.due || undefined, createdAt: new Date().toISOString() });
+      d.content.unshift({ id: uid(), clientId: form.clientId, title: form.title.trim(), stage: form.stage, assignee: form.assignee, due: form.due || undefined, createdAt: new Date().toISOString(), stageAt: new Date().toISOString() });
       logActivity(d, form.clientId, `Content added: ${form.title.trim()}`);
       touch(d, form.clientId);
     });
@@ -41,6 +41,7 @@ export default function ContentPage() {
       if (!item || !c || item.stage === stage) return;
       const wasPosted = item.stage === 'posted';
       item.stage = stage;
+      item.stageAt = new Date().toISOString();
       if (stage === 'posted' && !wasPosted) { c.videosPosted += 1; item.postedAt = new Date().toISOString(); logActivity(d, c.id, `Posted: ${item.title}`); }
       if (wasPosted && stage !== 'posted') { c.videosPosted = Math.max(0, c.videosPosted - 1); item.postedAt = undefined; logActivity(d, c.id, `Moved back from posted: ${item.title}`); }
       touch(d, c.id);

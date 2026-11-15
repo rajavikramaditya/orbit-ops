@@ -102,6 +102,8 @@ export interface ContentItem {
   due?: string;
   createdAt: string;
   postedAt?: string;
+  /** When the item last changed stage. Used to spot work that is stuck. */
+  stageAt?: string;
   sourceRequestId?: string;
 }
 
@@ -487,4 +489,60 @@ export const isOverdue = (due: string | undefined, status?: string) => !!due && 
 
 export function clientName(data: AppData, id: string | undefined) {
   return data.clients.find(c => c.id === id)?.name;
+}
+
+// ---------- Pipeline, workload and dues ----------
+
+/** Days an unfinished item may sit in one stage before it counts as stuck. */
+export const STUCK_AFTER_DAYS = 3;
+
+export function stageDays(i: ContentItem) {
+  return daysSince(i.stageAt || i.createdAt);
+}
+
+export function stuckContent(data: AppData) {
+  const ids = new Set(data.clients.filter(c => c.status !== 'Churned').map(c => c.id));
+  return data.content
+    .filter(i => i.stage !== 'posted' && ids.has(i.clientId) && stageDays(i) >= STUCK_AFTER_DAYS)
+    .sort((a, b) => stageDays(b) - stageDays(a));
+}
+
+export function memberLoad(data: AppData, name: string) {
+  const day = today();
+  const tasks = data.tasks.filter(t => t.assignee === name && t.status !== 'done');
+  const content = data.content.filter(c => c.assignee === name && c.stage !== 'posted');
+  const overdue = tasks.filter(t => t.due && t.due < day).length + content.filter(c => c.due && c.due < day).length;
+  return { open: tasks.length + content.length, overdue };
+}
+
+/** Fee owed for the client's current cycle minus what has been paid since it opened. */
+export function dueNow(c: Client, now = new Date()) {
+  const fee = c.monthlyFee || 0;
+  const cycle = clientCycle(cycleStartDayOf(c), now);
+  const paid = (c.payments || []).filter(p => p.date >= cycle.key).reduce((s, p) => s + p.amount, 0);
+  return { fee, paid, due: Math.max(0, fee - paid), daysIn: cycle.day };
+}
+
+/** Plain-text WhatsApp link. Indian 10-digit numbers get the 91 prefix. */
+export function whatsappLink(phone: string | undefined, text: string) {
+  const digits = (phone || '').replace(/\D/g, '');
+  const num = digits.length === 10 ? `91${digits}` : digits;
+  return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
+}
+
+// ---------- Backup reminder (this browser only) ----------
+
+const BACKUP_KEY = 'orbit-ops-last-backup';
+export const BACKUP_EVERY_DAYS = 7;
+
+export function markBackedUp() {
+  try { localStorage.setItem(BACKUP_KEY, new Date().toISOString()); } catch {}
+}
+
+/** Days since the last downloaded backup, or null if there never was one. */
+export function daysSinceBackup(): number | null {
+  try {
+    const v = localStorage.getItem(BACKUP_KEY);
+    return v ? daysSince(v) : null;
+  } catch { return null; }
 }
