@@ -35,7 +35,7 @@ export default function ReadmePage() {
 
       <section>
         <h2 className="font-medium mb-2">Roles</h2>
-        <p className="text-muted-foreground">Every role needs its PIN before that view opens. Use <strong className="text-foreground">Switch Role</strong> to lock and pick another. <strong className="text-foreground">Owner</strong> sees payments, expenses and revenue. <strong className="text-foreground">Manager</strong> can edit clients, requests, content and tasks, but not revenue. <strong className="text-foreground">Team</strong> is read-only and does not see phone numbers or other contact details. Set Owner and Team PINs in <Link href="/settings" className="text-foreground underline">Settings</Link>. The unlocked role is per browser tab.</p>
+        <p className="text-muted-foreground">Every role needs its PIN before that view opens. Use <strong className="text-foreground">Switch Role</strong> to lock and pick another. Use <strong className="text-foreground">Switch Account</strong> to leave the team session and return to the access-key sign-in. <strong className="text-foreground">Owner</strong> sees payments, expenses and revenue. <strong className="text-foreground">Manager</strong> can edit clients, requests, content and tasks, but not revenue. <strong className="text-foreground">Team</strong> is read-only and does not see phone numbers or other contact details. Set Owner and Team PINs in <Link href="/settings" className="text-foreground underline">Settings</Link> after Owner unlock — the unlock gate never offers a PIN reset for Manager or Team. The unlocked role is per browser tab.</p>
       </section>
 
       <section>

@@ -57,6 +57,24 @@ export function cloudMode() { return cloud.mode; }
 export function cloudMigrateOffer() { return cloud.migrateOffer; }
 export function cloudSnapshot() { return cloud.snap; }
 export function cloudProblem() { return cloud.problem; }
+/** True while the remote database is empty and waiting for the first save. */
+export function remoteAwaitingFirstSave() { return cloud.holdPush; }
+
+/** Clear local Owner PIN markers without wiping clients/tasks (empty-DB path). */
+function markLocalOwnerPinUnset() {
+  if (!state.cache) return;
+  state.applyingRemote = true;
+  try {
+    const next = structuredClone(state.cache);
+    delete next.settings.ownerPin;
+    next.settings.ownerPinSet = false;
+    state.cache = next;
+    try { localStorage.setItem('orbit-ops-data-v2', JSON.stringify(next)); } catch { /* private mode */ }
+    for (const l of state.listeners) l();
+  } finally {
+    state.applyingRemote = false;
+  }
+}
 
 const SERVER_SNAP: CloudSnap = { mode: 'unknown', migrate: false };
 
@@ -172,6 +190,9 @@ export async function connectCloud() {
   if (res.empty) {
     cloud.holdPush = true;
     cloud.migrateOffer = state.preexisting;
+    // Empty remote has no Owner PIN yet. Keep local work for migrate, but clear
+    // any stale "PIN is set" flag so Owner bootstrap can run once.
+    markLocalOwnerPinUnset();
   } else if (res.data) {
     cloud.holdPush = false;
     cloud.migrateOffer = !!localStorage.getItem(PENDING_MONEY);
@@ -193,11 +214,21 @@ export async function saveAccessKey(key: string) {
   return cloud.mode === 'remote' ? 'ok' as const : 'refused' as const;
 }
 
+/**
+ * Drop the team access key and return to the access-key gate.
+ * Used by Switch Account — not by Switch Role (which only clears the tab PIN unlock).
+ */
 export function forgetAccessKey() {
   localStorage.removeItem(KEY_ACCESS);
   state.remote = false;
   state.ownerPin = '';
+  cloud.holdPush = false;
+  cloud.migrateOffer = false;
+  cloud.latest = null;
+  // Always show the Sign-in gate after leaving the team session.
+  // connectCloud without a key yields locked (401) when remote is configured.
   cloud.mode = 'locked';
+  cloud.problem = '';
   emit();
 }
 
@@ -214,7 +245,9 @@ export async function unlockOwner(pin: string): Promise<'ok' | 'locked' | 'no'> 
 
 export function lockOwner() {
   state.ownerPin = '';
-  if (state.remote) void connectCloud();
+  // Only refresh when a team key is still present. Switch Account clears the key
+  // first; reconnecting here would race and pull the session back to remote.
+  if (state.remote && accessKey()) void connectCloud();
 }
 
 /** Upload whatever this browser currently holds. */

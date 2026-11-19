@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
 import { state } from './store-cache';
-import { lockOwner, unlockOwner } from './sync';
+import { forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
 import { managerPinMatches, teamPinMatches } from './role-pins';
 import { canEditMoney, canEditWork, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
@@ -75,8 +75,26 @@ function subscribe(cb: () => void) {
 export type UnlockResult = 'ok' | 'wrong-pin' | 'locked' | 'pin-required' | 'set-pin-required';
 
 /**
+ * True only when Owner may create the first PIN from the unlock gate.
+ * Never true for Manager/Team — callers must also gate on role === 'owner'.
+ * Remote with an existing PIN (or unknown/stale flag) never offers reset.
+ */
+export function ownerNeedsFirstPin(): boolean {
+  const s = loadData().settings;
+  if (s.ownerPin || s.ownerPinSet === true) return false;
+  if (state.remote) {
+    if (s.ownerPinSet === false) return true;
+    // Empty remote DB awaiting first save: first Owner may bootstrap the PIN.
+    if (remoteAwaitingFirstSave()) return true;
+    return false;
+  }
+  return true;
+}
+
+/**
  * Unlock a role for this tab. Every role needs its PIN before the view is usable.
  * Leaving a role (Switch Role) clears unlock and locks Owner money.
+ * Set-new-PIN is Owner-only first bootstrap — never a default on every switch.
  */
 export async function unlockRole(next: Role, pin: string, pinConfirm?: string): Promise<UnlockResult> {
   const trimmed = pin.trim();
@@ -106,6 +124,22 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
   const hasPin = !!(settings.ownerPin || settings.ownerPinSet);
 
   if (!hasPin) {
+    // Prefer verifying against the server when connected, so a stale local cache
+    // cannot open a "set new PIN" path that would look like a reset.
+    if (state.remote && pinConfirm === undefined) {
+      const ok = await unlockOwner(trimmed);
+      if (ok === 'ok') {
+        writeRole('owner');
+        writeUnlocked(true);
+        emit();
+        return 'ok';
+      }
+      if (ok === 'locked') return 'locked';
+      if (ownerNeedsFirstPin()) return 'set-pin-required';
+      return 'wrong-pin';
+    }
+
+    if (!ownerNeedsFirstPin()) return 'wrong-pin';
     if (trimmed.length < 4) return 'pin-required';
     if (pinConfirm === undefined) return 'set-pin-required';
     if (pinConfirm.trim() !== trimmed) return 'wrong-pin';
@@ -116,6 +150,7 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
       const ok = await unlockOwner(trimmed);
       if (ok === 'locked') return 'locked';
       if (ok !== 'ok') {
+        // First-PIN PUT may still be in flight; keep the presented PIN in memory.
         state.ownerPin = trimmed;
       }
     } else {
@@ -143,10 +178,22 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
   return 'ok';
 }
 
-/** Clear the unlocked session and return to the role gate. */
+/** Clear the unlocked session and return to the role gate (Switch Role). */
 export function lockRole() {
   writeUnlocked(false);
   lockOwner();
+  emit();
+}
+
+/**
+ * Leave the team access session entirely (Switch Account).
+ * Clears the tab unlock and the stored access key so CloudGate shows Sign in.
+ * Do not call lockOwner() here — it may reconnect with the old key and race.
+ */
+export function switchAccount() {
+  writeUnlocked(false);
+  state.ownerPin = '';
+  forgetAccessKey();
   emit();
 }
 
@@ -175,6 +222,7 @@ export function useRole() {
     canFees: session.unlocked && canViewFees(session.role),
     unlockRole,
     lockRole,
+    switchAccount,
     switchRole,
   };
 }

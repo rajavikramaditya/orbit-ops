@@ -62,7 +62,7 @@ Churned clients move to Bin and leave the active list.
 
 ## Roles (current model)
 
-Every role requires a PIN unlock before that view is usable. **Switch Role** locks the tab and asks for the next role’s PIN.
+Every role requires a PIN unlock before that view is usable. **Switch Role** locks the tab and asks for the next role’s PIN. **Switch Account** clears the team access key and returns to the access-key sign-in. Setting a new Owner PIN is only offered on first-time Owner bootstrap (or later in Owner Settings) — never as a reset on every role switch.
 
 - **Owner** — Full access including payments, expenses and revenue. Owner PIN is set in Settings (or on first Owner unlock).
 - **Manager** — Can edit clients, requests, content, tasks and team roster. Cannot open Revenue or change payments/expenses. Manager PIN is fixed (hashed in the app; plaintext is not shipped in source).

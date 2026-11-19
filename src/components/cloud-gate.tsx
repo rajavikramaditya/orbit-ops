@@ -37,6 +37,19 @@ export function CloudGate({ children }: { children: React.ReactNode }) {
     else toast('Could not reach the database');
   };
 
+  // Avoid flashing the role gate (a blank/middle page) while we still do not
+  // know whether this deployment needs the access-key sign-in.
+  if (cloud.mode === 'unknown') {
+    return (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p className="text-sm">Opening Orbit Ops…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (cloud.mode === 'locked') {
     return (
       <div className="fixed inset-0 z-[80] overflow-y-auto bg-background lg:grid lg:grid-cols-[1.05fr_1fr]">
