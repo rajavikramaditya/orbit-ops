@@ -54,7 +54,7 @@ type Tab = 'today' | 'month';
 
 export default function AttendancePage() {
   const data = useStore();
-  const { canManageAttendance, canSelfAttend, isTeam, role } = useRole();
+  const { canManageAttendance, canSelfAttend, isTeam, role, memberId } = useRole();
   const toast = useToast();
   const day = today();
   const [tab, setTab] = useState<Tab>('today');
@@ -71,11 +71,18 @@ export default function AttendancePage() {
   });
 
   useEffect(() => {
-    const id = readSelfMemberId();
-    if (id && data.team.some(m => m.id === id)) setSelfId(id);
-  }, [data.team]);
+    // Prefer the person who signed in (session memberId). Team cannot pick someone else.
+    const fromSession = memberId && data.team.some(m => m.id === memberId) ? memberId : '';
+    const fromStore = readSelfMemberId();
+    const id = fromSession || (fromStore && data.team.some(m => m.id === fromStore) ? fromStore : '');
+    if (id) {
+      setSelfId(id);
+      writeSelfMemberId(id);
+    }
+  }, [data.team, memberId]);
 
   const pickSelf = (id: string) => {
+    if (isTeam) return; // Team identity is fixed at login
     setSelfId(id);
     writeSelfMemberId(id);
   };
@@ -189,16 +196,22 @@ export default function AttendancePage() {
     <div className="max-w-4xl mx-auto space-y-5">
       <PageHeader
         title="Attendance"
-        subtitle={`Team check-in · late after ${String(LATE_AFTER.hour).padStart(2, '0')}:${String(LATE_AFTER.minute).padStart(2, '0')}`}
+        subtitle={
+          isTeam
+            ? 'Check in and out for yourself today'
+            : `Team check-in · late after ${String(LATE_AFTER.hour).padStart(2, '0')}:${String(LATE_AFTER.minute).padStart(2, '0')}`
+        }
       >
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: 'month', label: 'Month' },
-          ]}
-        />
+        {canManageAttendance && (
+          <Segmented
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: 'month', label: 'Month' },
+            ]}
+          />
+        )}
       </PageHeader>
 
       {data.team.length === 0 && (
@@ -207,23 +220,33 @@ export default function AttendancePage() {
 
       {tab === 'today' && data.team.length > 0 && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MiniStat label="Present" value={todaySummary.present} tone="green" />
-            <MiniStat label="Late" value={todaySummary.late} tone="amber" />
-            <MiniStat label="Half day" value={todaySummary.half} tone="amber" />
-            <MiniStat label="Absent" value={todaySummary.absent} tone="red" />
-          </div>
+          {canManageAttendance && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MiniStat label="Present" value={todaySummary.present} tone="green" />
+              <MiniStat label="Late" value={todaySummary.late} tone="amber" />
+              <MiniStat label="Half day" value={todaySummary.half} tone="amber" />
+              <MiniStat label="Absent" value={todaySummary.absent} tone="red" />
+            </div>
+          )}
 
           <Card className="p-4 space-y-4">
             <SectionTitle>Your check-in</SectionTitle>
-            <Field label={isTeam ? 'Who are you?' : 'Mark as'}>
-              <Select value={selfId} onChange={e => pickSelf(e.target.value)}>
-                <option value="">Select team member…</option>
-                {data.team.map(m => (
-                  <option key={m.id} value={m.id}>{m.name} · {m.role}</option>
-                ))}
-              </Select>
-            </Field>
+            {isTeam ? (
+              self ? (
+                <p className="text-xs text-muted-foreground -mt-2">Signed in as {self.name}. You can only mark your own attendance for today.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground -mt-2">Your login name is not on the team roster. Ask a Manager to add you.</p>
+              )
+            ) : (
+              <Field label="Mark as">
+                <Select value={selfId} onChange={e => pickSelf(e.target.value)}>
+                  <option value="">Select team member…</option>
+                  {data.team.map(m => (
+                    <option key={m.id} value={m.id}>{m.name} · {m.role}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             {self && (
               <div className="flex flex-wrap items-center gap-3">
                 <Avatar name={self.name} />
@@ -258,35 +281,35 @@ export default function AttendancePage() {
             )}
             {isTeam && (
               <p className="text-[11px] text-muted-foreground">
-                Team can only check in and out for today under your name. Ask a Manager to correct history or mark absent / half-day.
+                Ask a Manager to correct history or mark absent / half-day.
               </p>
             )}
           </Card>
 
-          <div>
-            <SectionTitle right={unmarked.length ? <span className="text-xs text-muted-foreground">{unmarked.length} not marked</span> : undefined}>
-              Everyone today
-            </SectionTitle>
-            <Card>
-              {data.team.map(m => {
-                const e = entryFor(data.attendance, m.id, day);
-                return (
-                  <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
-                    <Avatar name={m.name} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{m.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {e
-                          ? `${e.checkIn ? `In ${formatTime(e.checkIn)}` : '—'}${e.checkOut ? ` · Out ${formatTime(e.checkOut)}` : ''}`
-                          : 'Not marked'}
-                      </p>
-                    </div>
-                    {e ? (
-                      <Badge tone={statusTone(e.status)}>{STATUS_LABEL[e.status]}</Badge>
-                    ) : (
-                      <Badge>Open</Badge>
-                    )}
-                    {canManageAttendance && (
+          {canManageAttendance && (
+            <div>
+              <SectionTitle right={unmarked.length ? <span className="text-xs text-muted-foreground">{unmarked.length} not marked</span> : undefined}>
+                Everyone today
+              </SectionTitle>
+              <Card>
+                {data.team.map(m => {
+                  const e = entryFor(data.attendance, m.id, day);
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
+                      <Avatar name={m.name} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{m.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {e
+                            ? `${e.checkIn ? `In ${formatTime(e.checkIn)}` : '—'}${e.checkOut ? ` · Out ${formatTime(e.checkOut)}` : ''}`
+                            : 'Not marked'}
+                        </p>
+                      </div>
+                      {e ? (
+                        <Badge tone={statusTone(e.status)}>{STATUS_LABEL[e.status]}</Badge>
+                      ) : (
+                        <Badge>Open</Badge>
+                      )}
                       <button
                         type="button"
                         aria-label={`Edit ${m.name}`}
@@ -295,88 +318,94 @@ export default function AttendancePage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                  </div>
-                );
-              })}
-            </Card>
-          </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            </div>
+          )}
         </>
       )}
 
       {tab === 'month' && data.team.length > 0 && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <p className="text-sm font-medium">{monthLabelLong(month)}</p>
-            <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Person">
-              <Select value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
-                <option value="">Everyone</option>
-                {data.team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Date">
-              <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
-            </Field>
-          </div>
-
-          <Card className="p-3">
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <span key={d}>{d}</span>)}
+        canManageAttendance ? (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <p className="text-sm font-medium">{monthLabelLong(month)}</p>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: pad }).map((_, i) => <div key={`pad-${i}`} />)}
-              {days.map(d => {
-                const rows = entriesOn(data.attendance, d).filter(e => !personFilter || e.memberId === personFilter);
-                const s = summarizeDay(rows);
-                const isToday = d === day;
-                const tone = s.absent > 0 ? 'bg-red-soft' : s.late + s.half > 0 ? 'bg-amber-soft' : s.present > 0 ? 'bg-green-soft' : 'bg-muted/40';
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDateFilter(dateFilter === d ? '' : d)}
-                    className={cn(
-                      'aspect-square rounded-xl text-xs flex flex-col items-center justify-center gap-0.5 transition-colors',
-                      tone,
-                      isToday && 'ring-1 ring-foreground',
-                      dateFilter === d && 'ring-2 ring-brand',
-                    )}
-                  >
-                    <span className="font-medium tabular-nums">{Number(d.slice(8))}</span>
-                    {s.marked > 0 && <span className="text-[9px] tabular-nums text-muted-foreground">{s.marked}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
 
-          <Card>
-            {monthEntries.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">No attendance recorded for this filter.</div>
-            ) : (
-              monthEntries.map(e => (
-                <HistoryRow
-                  key={e.id}
-                  entry={e}
-                  canEdit={canManageAttendance}
-                  onEdit={() => {
-                    const m = data.team.find(t => t.id === e.memberId);
-                    if (m) openEdit(m, e.date);
-                  }}
-                />
-              ))
-            )}
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Person">
+                <Select value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+                  <option value="">Everyone</option>
+                  {data.team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Date">
+                <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
+              </Field>
+            </div>
+
+            <Card className="p-3">
+              <div className="grid grid-cols-7 gap-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <span key={d}>{d}</span>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: pad }).map((_, i) => <div key={`pad-${i}`} />)}
+                {days.map(d => {
+                  const rows = entriesOn(data.attendance, d).filter(e => !personFilter || e.memberId === personFilter);
+                  const s = summarizeDay(rows);
+                  const isToday = d === day;
+                  const tone = s.absent > 0 ? 'bg-red-soft' : s.late + s.half > 0 ? 'bg-amber-soft' : s.present > 0 ? 'bg-green-soft' : 'bg-muted/40';
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDateFilter(dateFilter === d ? '' : d)}
+                      className={cn(
+                        'aspect-square rounded-xl text-xs flex flex-col items-center justify-center gap-0.5 transition-colors',
+                        tone,
+                        isToday && 'ring-1 ring-foreground',
+                        dateFilter === d && 'ring-2 ring-brand',
+                      )}
+                    >
+                      <span className="font-medium tabular-nums">{Number(d.slice(8))}</span>
+                      {s.marked > 0 && <span className="text-[9px] tabular-nums text-muted-foreground">{s.marked}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card>
+              {monthEntries.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">No attendance recorded for this filter.</div>
+              ) : (
+                monthEntries.map(e => (
+                  <HistoryRow
+                    key={e.id}
+                    entry={e}
+                    canEdit={canManageAttendance}
+                    onEdit={() => {
+                      const m = data.team.find(t => t.id === e.memberId);
+                      if (m) openEdit(m, e.date);
+                    }}
+                  />
+                ))
+              )}
+            </Card>
+          </>
+        ) : (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            Month history is for Managers and Owners. You can check in and out on the Today tab.
           </Card>
-        </>
+        )
       )}
 
       <Sheet

@@ -206,9 +206,8 @@ export async function saveAccessKey(key: string) {
 }
 
 /**
- * Drop the team access key and show the primary Sign-in gate (CloudGate).
- * Used by Switch Role / Switch Account so users land on the real access-key
- * login — not the role PIN middle screen and not a blank page.
+ * Drop the team access key and return to the single Sign-in page (CloudGate)
+ * with the access-key field visible again. Used by Switch Account.
  */
 export function forgetAccessKey() {
   localStorage.removeItem(KEY_ACCESS);
@@ -217,8 +216,8 @@ export function forgetAccessKey() {
   cloud.holdPush = false;
   cloud.migrateOffer = false;
   cloud.latest = null;
-  // Force the branded access-key Sign-in immediately. Do not await connectCloud
-  // first — that can flash RoleGate / a blank middle state.
+  // Force the branded Sign-in immediately. Do not await connectCloud first —
+  // that can flash a blank middle state before the login form.
   cloud.mode = 'locked';
   cloud.problem = '';
   emit();

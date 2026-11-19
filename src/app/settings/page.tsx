@@ -132,33 +132,35 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="p-5 space-y-4">
-        <SectionTitle><span className="inline-flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Team & Manager PINs</span></SectionTitle>
+        <SectionTitle><span className="inline-flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Default Team password</span></SectionTitle>
         <p className="text-sm text-muted-foreground -mt-2">
-          Manager uses a fixed PIN set by the Owner (not shown here). Team uses a configurable PIN — default is documented for the Owner; change it below so only your crew knows it.
-          {data.settings.teamPinSet ? ' A custom Team PIN is set.' : ' Team is using the default PIN until you change it.'}
+          People sign in with role + first name + password. Prefer a personal password on each person in Team.
+          Until then, Managers use the legacy Manager password, and Team members without a personal password use this default.
+          {data.settings.teamPinSet ? ' A custom Team default is set.' : ' Team is using the built-in default until you change it.'}
+          {' '}This screen never offers a global PIN reset for Manager.
         </p>
         {isOwner ? (
           <form onSubmit={saveTeamPin} className="flex flex-wrap gap-2 items-end">
-            <Field label="New Team PIN" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" placeholder="At least 4 digits" value={teamPin} onChange={e => setTeamPin(e.target.value.replace(/\D/g, ''))} /></Field>
+            <Field label="New Team default" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" placeholder="At least 4 digits" value={teamPin} onChange={e => setTeamPin(e.target.value.replace(/\D/g, ''))} /></Field>
             <Field label="Repeat" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" value={teamPin2} onChange={e => setTeamPin2(e.target.value.replace(/\D/g, ''))} /></Field>
-            <Button type="submit" variant="primary">{data.settings.teamPinSet ? 'Change Team PIN' : 'Set Team PIN'}</Button>
+            <Button type="submit" variant="primary">{data.settings.teamPinSet ? 'Change default' : 'Set default'}</Button>
             {data.settings.teamPinSet && (
               <Button
                 variant="ghost"
                 type="button"
                 onClick={() => {
-                  if (confirm('Reset Team PIN to the default?')) {
+                  if (confirm('Reset Team default password to the built-in default?')) {
                     update(d => { delete d.settings.teamPinHash; delete d.settings.teamPinSet; }, 'owner-settings');
-                    toast('Team PIN reset to default');
+                    toast('Team default reset');
                   }
                 }}
               >
-                Use default
+                Use built-in
               </Button>
             )}
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">Unlock as Owner to change the Team PIN.</p>
+          <p className="text-sm text-muted-foreground">Sign in as Owner to change the Team default password.</p>
         )}
       </Card>
 

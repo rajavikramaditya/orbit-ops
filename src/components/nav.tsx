@@ -67,15 +67,15 @@ export function Nav() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
   const canSwitchAccount = cloud.mode === 'remote';
 
-  /** Switch Role returns to the original access-key Sign-in (not RoleGate). */
+  /** Switch Role returns to the single login page (role + name + password). */
   const onSwitchRole = () => {
     leaveToLogin();
-    toast(canSwitchAccount ? 'Enter the team access key' : 'Enter a PIN to continue');
+    toast('Sign in again');
   };
 
   const onSwitchAccount = () => {
     switchAccount();
-    toast('Enter the team access key');
+    toast('Enter the team access key to reconnect');
   };
 
   return (
@@ -142,7 +142,7 @@ export function Nav() {
             className="w-full flex items-center justify-center gap-2 rounded-xl border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             <Lock className="h-3.5 w-3.5" />
-            Switch Role
+            Log out
           </button>
           {canSwitchAccount && (
             <button
@@ -187,7 +187,7 @@ export function Nav() {
           className="mt-2 w-full flex items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium hover:bg-muted"
         >
           <Lock className="h-4 w-4" />
-          Switch Role
+          Log out
         </button>
         {canSwitchAccount && (
           <button
@@ -201,7 +201,7 @@ export function Nav() {
         )}
         <p className="mt-3 text-[11px] text-muted-foreground">
           Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>.
-          {' '}Switch Role returns to the team access-key sign-in, then a role PIN unlock.
+          {' '}Log out returns to the single sign-in page. Switch Account also clears the team access key.
         </p>
       </Sheet>
     </>

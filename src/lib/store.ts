@@ -118,6 +118,13 @@ export interface Member {
   role: MemberRole;
   focus: string;
   phone?: string;
+  /**
+   * SHA-256 hex of `orbit-ops:member:{id}:{password}`.
+   * When missing, login falls back to the legacy role password
+   * (Manager 8423095693, Team 246810 / settings.teamPinHash).
+   * Owner always uses the Owner money PIN, not this field.
+   */
+  passwordHash?: string;
 }
 
 export interface Settings {

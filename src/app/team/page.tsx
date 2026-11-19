@@ -5,15 +5,16 @@ import Link from 'next/link';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useStore, update, uid, today, type Member, type MemberRole } from '@/lib/store';
 import { useRole } from '@/lib/role';
+import { hashMemberPassword } from '@/lib/role-pins';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, Select, Avatar, Badge, EmptyState, Sheet } from '@/components/ui';
 
 const ROLES: MemberRole[] = ['Owner', 'Manager', 'Editor', 'Shooter', 'Designer'];
-const blank = { name: '', role: 'Editor' as MemberRole, focus: '', phone: '' };
+const blank = { name: '', role: 'Editor' as MemberRole, focus: '', phone: '', password: '' };
 
 export default function TeamPage() {
   const data = useStore();
-  const { canEdit, canPii } = useRole();
+  const { canEdit, canPii, isOwner } = useRole();
   const toast = useToast();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [form, setForm] = useState(blank);
@@ -28,9 +29,9 @@ export default function TeamPage() {
   });
 
   const openNew = () => { if (!canEdit) return; setForm(blank); setEditing('new'); };
-  const openEdit = (m: Member) => { if (!canEdit) return; setForm({ name: m.name, role: m.role, focus: m.focus, phone: m.phone || '' }); setEditing(m.id); };
+  const openEdit = (m: Member) => { if (!canEdit) return; setForm({ name: m.name, role: m.role, focus: m.focus, phone: m.phone || '', password: '' }); setEditing(m.id); };
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return;
     const name = form.name.trim();
@@ -38,14 +39,32 @@ export default function TeamPage() {
       alert(`${name} is already on the team. Names must be unique because work is assigned by name.`);
       return;
     }
+    const newId = editing === 'new' ? uid() : String(editing);
+    let passwordHash: string | undefined;
+    if (form.password.trim() && form.role !== 'Owner') {
+      if (form.password.trim().length < 4) {
+        alert('Login password must be at least 4 characters.');
+        return;
+      }
+      passwordHash = await hashMemberPassword(newId, form.password.trim());
+    }
     update(d => {
       if (editing === 'new') {
-        d.team.push({ id: uid(), name, role: form.role, focus: form.focus.trim(), phone: form.phone.trim() || undefined });
+        d.team.push({
+          id: newId,
+          name,
+          role: form.role,
+          focus: form.focus.trim(),
+          phone: form.phone.trim() || undefined,
+          ...(passwordHash ? { passwordHash } : {}),
+        });
       } else {
         const m = d.team.find(x => x.id === editing);
         if (!m) return;
         const old = m.name;
         Object.assign(m, { name, role: form.role, focus: form.focus.trim(), phone: form.phone.trim() || undefined });
+        if (passwordHash) m.passwordHash = passwordHash;
+        if (form.role === 'Owner') delete m.passwordHash;
         if (old !== name) {
           for (const c of d.clients) if (c.owner === old) c.owner = name;
           for (const t of d.tasks) if (t.assignee === old) t.assignee = name;
@@ -122,7 +141,24 @@ export default function TeamPage() {
             <Field label="Phone"><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} inputMode="tel" /></Field>
           </div>
           <Field label="Focus"><Input value={form.focus} onChange={e => setForm({ ...form, focus: e.target.value })} placeholder="e.g. Automotive clients" /></Field>
+          {form.role !== 'Owner' && (
+            <Field label="Login password">
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder={editing === 'new' ? 'Optional — uses role default if blank' : 'Leave blank to keep current'}
+              />
+            </Field>
+          )}
+          {form.role === 'Owner' && (
+            <p className="text-xs text-muted-foreground">Owner signs in with the Owner money password from Settings, not a per-person password.</p>
+          )}
           {editing !== 'new' && <p className="text-xs text-muted-foreground">Renaming updates every client, task, content item and request assigned to this person.</p>}
+          {isOwner && form.role !== 'Owner' && (
+            <p className="text-xs text-muted-foreground">Until a personal password is set, Managers use the legacy Manager password and Team uses the default Team password.</p>
+          )}
         </form>
       </Sheet>
     </div>
