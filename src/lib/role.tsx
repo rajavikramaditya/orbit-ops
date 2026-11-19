@@ -5,7 +5,7 @@ import { loadData, type Role } from './store';
 import { state } from './store-cache';
 import { cloudMode, forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
 import { managerPinMatches, teamPinMatches } from './role-pins';
-import { canEditMoney, canEditWork, canViewFees, canViewPii, canViewRevenue } from './permissions';
+import { canEditMoney, canEditWork, canManageAttendance, canSelfAttend, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
 /** Tab-scoped role + unlock. Never put these in localStorage — that would escalate across tabs. */
 const ROLE_KEY = 'orbit-ops-role';
@@ -237,6 +237,8 @@ export function useRole() {
     canRevenue: session.unlocked && canViewRevenue(session.role),
     canPii: session.unlocked && canViewPii(session.role),
     canFees: session.unlocked && canViewFees(session.role),
+    canManageAttendance: session.unlocked && canManageAttendance(session.role),
+    canSelfAttend: session.unlocked && canSelfAttend(session.role),
     unlockRole,
     lockRole,
     switchAccount,
@@ -249,6 +251,6 @@ export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', manager: 'Mana
 
 export const ROLE_BLURB: Record<Role, string> = {
   owner: 'Everything, including payments, expenses and revenue',
-  manager: 'Clients, requests, content and tasks — not revenue',
-  team: 'Read-only progress. No contact details or edits.',
+  manager: 'Clients, requests, content, tasks and attendance — not revenue',
+  team: 'Read-only ops, plus your own check-in / check-out. No contact details.',
 };

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, KeyRound, RefreshCw } from 'lucide-react';
+import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, KeyRound, RefreshCw, CalendarCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, ROLE_LABEL } from '@/lib/role';
 import { useStore } from '@/lib/store';
@@ -30,6 +30,7 @@ const groups: { title: string; items: Item[] }[] = [
     items: [
       { href: '/revenue', label: 'Revenue', icon: IndianRupee, ownerOnly: true },
       { href: '/team', label: 'Team', icon: UserCircle },
+      { href: '/attendance', label: 'Attendance', icon: CalendarCheck },
     ],
   },
   {

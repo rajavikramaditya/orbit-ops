@@ -35,7 +35,12 @@ export default function ReadmePage() {
 
       <section>
         <h2 className="font-medium mb-2">Roles</h2>
-        <p className="text-muted-foreground">Every role needs its PIN before that view opens. Use <strong className="text-foreground">Switch Role</strong> (or <strong className="text-foreground">Switch Account</strong>) to return to the team access-key sign-in, then unlock again with a role PIN. <strong className="text-foreground">Owner</strong> sees payments, expenses and revenue. <strong className="text-foreground">Manager</strong> can edit clients, requests, content and tasks, but not revenue. <strong className="text-foreground">Team</strong> is read-only and does not see phone numbers or other contact details. Set Owner and Team PINs in <Link href="/settings" className="text-foreground underline">Settings</Link> after Owner unlock — the unlock gate never offers a PIN reset for Manager or Team. The unlocked role is per browser tab.</p>
+        <p className="text-muted-foreground">Every role needs its PIN before that view opens. Use <strong className="text-foreground">Switch Role</strong> (or <strong className="text-foreground">Switch Account</strong>) to return to the team access-key sign-in, then unlock again with a role PIN. <strong className="text-foreground">Owner</strong> sees payments, expenses and revenue. <strong className="text-foreground">Manager</strong> can edit clients, requests, content, tasks and attendance, but not revenue. <strong className="text-foreground">Team</strong> is read-only for ops and does not see phone numbers or other contact details, except they may check in and out for themselves on <Link href="/attendance" className="text-foreground underline">Attendance</Link>. Set Owner and Team PINs in <Link href="/settings" className="text-foreground underline">Settings</Link> after Owner unlock — the unlock gate never offers a PIN reset for Manager or Team. The unlocked role is per browser tab.</p>
+      </section>
+
+      <section>
+        <h2 className="font-medium mb-2">Attendance</h2>
+        <p className="text-muted-foreground">Open <Link href="/attendance" className="text-foreground underline">Attendance</Link> to mark the day. Check-in after 10:30 is marked late. Owner and Manager see everyone, can correct any day, and can set absent or half-day. Team picks their own name once on that device, then only checks in and out for today — they cannot edit others or rewrite history. Attendance is not revenue and never shows client contact details.</p>
       </section>
 
       <section>
