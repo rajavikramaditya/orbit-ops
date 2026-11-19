@@ -4,13 +4,14 @@ import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
 import { state } from './store-cache';
 import { forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
-import { findMemberForLogin, memberPasswordMatches } from './role-pins';
+import { lookupMemberForLogin, memberPasswordMatches } from './role-pins';
 import { writeSelfMemberId } from './attendance';
 import { canEditMoney, canEditWork, canManageAttendance, canSelfAttend, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
 /** Tab-scoped role + unlock. Never put these in localStorage — that would escalate across tabs. */
 const ROLE_KEY = 'orbit-ops-role';
 const UNLOCK_KEY = 'orbit-ops-role-unlocked';
+/** Also read by sync.ts for Team attendance headers — keep the string in sync. */
 const MEMBER_KEY = 'orbit-ops-member-id';
 const LEGACY_ROLE_KEY = 'orbit-ops-role';
 const listeners = new Set<() => void>();
@@ -98,7 +99,8 @@ export type UnlockResult =
   | 'pin-required'
   | 'set-pin-required'
   | 'name-required'
-  | 'unknown-name';
+  | 'unknown-name'
+  | 'ambiguous-name';
 
 /**
  * True only when Owner may create the first PIN from the login form.
@@ -121,7 +123,9 @@ export function ownerNeedsFirstPin(): boolean {
 function bindSession(role: Role, memberId: string) {
   writeRole(role);
   writeMemberId(memberId);
-  writeSelfMemberId(memberId);
+  // Owner/Manager: optional shared mark-as preference for attendance UI.
+  // Team: never write shared localStorage — API headers use this tab’s session id only.
+  if (role !== 'team') writeSelfMemberId(memberId);
   writeUnlocked(true);
   emit();
 }
@@ -144,8 +148,10 @@ export async function unlockWithIdentity(
   if (!trimmed) return 'pin-required';
 
   const data = loadData();
-  const member = findMemberForLogin(data.team, next, name);
-  if (!member) return 'unknown-name';
+  const lookup = lookupMemberForLogin(data.team, next, name);
+  if (lookup.status === 'ambiguous') return 'ambiguous-name';
+  if (lookup.status !== 'ok') return 'unknown-name';
+  const member = lookup.member;
 
   if (next === 'manager' || next === 'team') {
     if (!(await memberPasswordMatches(member, trimmed, data.settings))) return 'wrong-pin';

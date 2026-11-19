@@ -125,6 +125,10 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
         setError(`No ${ROLE_LABEL[role]} on the team matches that first name.`);
         return;
       }
+      if (res === 'ambiguous-name') {
+        setError(`More than one ${ROLE_LABEL[role]} shares that first name. Rename one on the Team page.`);
+        return;
+      }
       if (res === 'set-pin-required') {
         if (role === 'owner' && ownerNeedsFirstPin()) {
           setNeedSet(true);

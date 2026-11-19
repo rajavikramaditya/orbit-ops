@@ -3,10 +3,11 @@
 import { useSyncExternalStore } from 'react';
 import type { AppData } from './store';
 import { state } from './store-cache';
-import { readSelfMemberId } from './attendance';
 
 const KEY_ACCESS = 'orbit-ops-access-key';
 const PENDING_MONEY = 'orbit-ops-money-pending';
+/** Must match `MEMBER_KEY` in role.tsx — tab-scoped, never localStorage. */
+const SESSION_MEMBER_KEY = 'orbit-ops-member-id';
 
 export type CloudMode = 'unknown' | 'local' | 'locked' | 'remote';
 
@@ -87,6 +88,16 @@ function deviceRole(): string {
   }
 }
 
+/** Tab-scoped member id from the sign-in session (not shared localStorage). */
+function sessionMemberId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return sessionStorage.getItem(SESSION_MEMBER_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
 function headers(pin = state.ownerPin) {
   const h: Record<string, string> = { 'content-type': 'application/json' };
   const key = accessKey();
@@ -94,9 +105,10 @@ function headers(pin = state.ownerPin) {
   if (pin) h['x-owner-pin'] = pin;
   const role = deviceRole();
   if (role === 'owner' || role === 'manager' || role === 'team') h['x-orbit-role'] = role;
-  // Team self check-in/out needs the chosen member id so the API can scope the write.
+  // Team self check-in/out must use this tab’s signed-in member, not a shared
+  // localStorage value that another Team tab may have overwritten.
   if (role === 'team') {
-    const memberId = readSelfMemberId();
+    const memberId = sessionMemberId();
     if (memberId) h['x-orbit-member-id'] = memberId;
   }
   return h;

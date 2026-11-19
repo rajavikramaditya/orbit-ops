@@ -71,18 +71,24 @@ export default function AttendancePage() {
   });
 
   useEffect(() => {
-    // Prefer the person who signed in (session memberId). Team cannot pick someone else.
+    // Prefer the person who signed in (tab session memberId). Team never falls
+    // back to shared localStorage — that would cross-contaminate other Team tabs.
     const fromSession = memberId && data.team.some(m => m.id === memberId) ? memberId : '';
-    const fromStore = readSelfMemberId();
-    const id = fromSession || (fromStore && data.team.some(m => m.id === fromStore) ? fromStore : '');
-    if (id) {
-      setSelfId(id);
-      writeSelfMemberId(id);
+    if (fromSession) {
+      setSelfId(fromSession);
+      if (!isTeam) writeSelfMemberId(fromSession);
+      return;
     }
-  }, [data.team, memberId]);
+    if (isTeam) {
+      setSelfId('');
+      return;
+    }
+    const fromStore = readSelfMemberId();
+    if (fromStore && data.team.some(m => m.id === fromStore)) setSelfId(fromStore);
+  }, [data.team, memberId, isTeam]);
 
   const pickSelf = (id: string) => {
-    if (isTeam) return; // Team identity is fixed at login
+    if (isTeam) return; // Team identity is fixed at login (session only)
     setSelfId(id);
     writeSelfMemberId(id);
   };

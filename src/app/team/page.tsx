@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useStore, update, uid, today, type Member, type MemberRole } from '@/lib/store';
 import { useRole } from '@/lib/role';
-import { hashMemberPassword } from '@/lib/role-pins';
+import { hashMemberPassword, sameRoleFirstNameTaken } from '@/lib/role-pins';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, Select, Avatar, Badge, EmptyState, Sheet } from '@/components/ui';
 
@@ -37,6 +37,12 @@ export default function TeamPage() {
     const name = form.name.trim();
     if (data.team.some(m => m.name.toLowerCase() === name.toLowerCase() && m.id !== editing)) {
       alert(`${name} is already on the team. Names must be unique because work is assigned by name.`);
+      return;
+    }
+    // Sign-in matches first name within a login role — block collisions at save time.
+    if (sameRoleFirstNameTaken(data.team, form.role, name, editing === 'new' ? null : String(editing))) {
+      const first = name.split(/\s+/)[0] || name;
+      alert(`Another ${form.role === 'Owner' || form.role === 'Manager' ? form.role : 'Team'} member already uses the first name “${first}”. Sign-in needs unique first names within each role.`);
       return;
     }
     const newId = editing === 'new' ? uid() : String(editing);

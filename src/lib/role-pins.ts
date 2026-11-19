@@ -84,18 +84,51 @@ export function firstNameOf(fullName: string) {
   return fullName.trim().split(/\s+/)[0]?.toLowerCase() || '';
 }
 
+export type LoginLookup =
+  | { status: 'ok'; member: Member }
+  | { status: 'none' }
+  | { status: 'ambiguous' };
+
 /**
  * Find the unique roster member for a login attempt.
  * Match is first-name only (case-insensitive) among people whose roster role
- * maps to the selected device role.
+ * maps to the selected device role. Ambiguous when two+ share that first name.
  */
-export function findMemberForLogin(team: Member[], role: Role, firstName: string): Member | null {
+export function lookupMemberForLogin(team: Member[], role: Role, firstName: string): LoginLookup {
   const want = firstNameOf(firstName);
-  if (!want) return null;
+  if (!want) return { status: 'none' };
   const matches = team.filter(
     m => deviceRoleForMemberRole(m.role) === role && firstNameOf(m.name) === want,
   );
-  return matches.length === 1 ? matches[0] : null;
+  if (matches.length === 1) return { status: 'ok', member: matches[0] };
+  if (matches.length > 1) return { status: 'ambiguous' };
+  return { status: 'none' };
+}
+
+/** @deprecated Prefer lookupMemberForLogin — null covers both none and ambiguous. */
+export function findMemberForLogin(team: Member[], role: Role, firstName: string): Member | null {
+  const hit = lookupMemberForLogin(team, role, firstName);
+  return hit.status === 'ok' ? hit.member : null;
+}
+
+/**
+ * True when another roster person in the same login role already uses this
+ * first name (case-insensitive). Used to block roster saves that would break sign-in.
+ */
+export function sameRoleFirstNameTaken(
+  team: Member[],
+  role: MemberRole,
+  fullName: string,
+  exceptId?: string | null,
+): boolean {
+  const want = firstNameOf(fullName);
+  if (!want) return false;
+  const deviceRole = deviceRoleForMemberRole(role);
+  return team.some(
+    m => m.id !== exceptId
+      && deviceRoleForMemberRole(m.role) === deviceRole
+      && firstNameOf(m.name) === want,
+  );
 }
 
 /**
