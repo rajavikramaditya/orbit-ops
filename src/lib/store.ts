@@ -427,7 +427,7 @@ function roleAllowsMutation(kind: MutationKind): boolean {
   let role: Role = 'team';
   try {
     unlocked = sessionStorage.getItem('orbit-ops-role-unlocked') === '1';
-    const r = localStorage.getItem('orbit-ops-role');
+    const r = sessionStorage.getItem('orbit-ops-role');
     if (r === 'owner' || r === 'manager' || r === 'team') role = r;
   } catch { return false; }
   if (!unlocked) return false;

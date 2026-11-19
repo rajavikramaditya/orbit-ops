@@ -88,6 +88,28 @@ export function withMoney(doc: Doc, money: MoneyMap): Doc {
   };
 }
 
+/** Strip contact/PII fields before sending shared state to the Team role. */
+export function redactPii(doc: Doc): Doc {
+  return {
+    ...doc,
+    clients: doc.clients.map(c => {
+      const next = { ...c };
+      delete next.phone;
+      delete next.contactName;
+      delete next.instagram;
+      delete next.email;
+      return next;
+    }),
+    team: (Array.isArray(doc.team) ? doc.team : []).map(member => {
+      if (!member || typeof member !== 'object') return member;
+      const next = { ...(member as Record<string, unknown>) };
+      delete next.phone;
+      delete next.email;
+      return next;
+    }),
+  };
+}
+
 export type MergeResult = {
   doc: Doc;
   money: MoneyMap;
@@ -100,12 +122,20 @@ export type MergeResult = {
 
 /**
  * Work fields always update. Money and the PIN update only when `pinOk`
- * (the presented PIN matches) or when no PIN exists yet and the payload sets one.
+ * (the presented PIN matches) or when `allowFirstPin` and no PIN exists yet.
+ * First-PIN bootstrap must be Owner-only — never Manager/Team.
  */
-export function mergeDoc(stored: Doc, storedMoney: MoneyMap, hadPin: boolean, incoming: Doc, pinOk: boolean): MergeResult {
+export function mergeDoc(
+  stored: Doc,
+  storedMoney: MoneyMap,
+  hadPin: boolean,
+  incoming: Doc,
+  pinOk: boolean,
+  allowFirstPin = false,
+): MergeResult {
   const extracted = extractMoney(incoming);
   const proposedPin = typeof incoming.settings?.ownerPin === 'string' ? incoming.settings.ownerPin.trim() : '';
-  const settingFirstPin = !hadPin && proposedPin.length >= 4;
+  const settingFirstPin = allowFirstPin && !hadPin && proposedPin.length >= 4;
   const canWritePrivate = pinOk || settingFirstPin;
 
   const doc = publicDoc(incoming, hadPin || settingFirstPin || pinOk);

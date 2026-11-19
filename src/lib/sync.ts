@@ -78,7 +78,7 @@ function deviceRole(): string {
   if (typeof window === 'undefined') return '';
   try {
     if (sessionStorage.getItem('orbit-ops-role-unlocked') !== '1') return '';
-    return localStorage.getItem('orbit-ops-role') || '';
+    return sessionStorage.getItem('orbit-ops-role') || '';
   } catch {
     return '';
   }

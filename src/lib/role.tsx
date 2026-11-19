@@ -7,16 +7,20 @@ import { lockOwner, unlockOwner } from './sync';
 import { managerPinMatches, teamPinMatches } from './role-pins';
 import { canEditMoney, canEditWork, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
+/** Tab-scoped role + unlock. Never put these in localStorage — that would escalate across tabs. */
 const ROLE_KEY = 'orbit-ops-role';
 const UNLOCK_KEY = 'orbit-ops-role-unlocked';
+const LEGACY_ROLE_KEY = 'orbit-ops-role';
 const listeners = new Set<() => void>();
 
 type Session = { role: Role; unlocked: boolean };
 
 function readStoredRole(): Role {
   if (typeof window === 'undefined') return 'team';
-  const r = localStorage.getItem(ROLE_KEY);
-  if (r === 'owner' || r === 'manager' || r === 'team') return r;
+  try {
+    const r = sessionStorage.getItem(ROLE_KEY);
+    if (r === 'owner' || r === 'manager' || r === 'team') return r;
+  } catch { /* private mode */ }
   return 'team';
 }
 
@@ -45,7 +49,11 @@ function readSession(): Session {
 const SERVER_SESSION: Session = { role: 'team', unlocked: false };
 
 function writeRole(r: Role) {
-  localStorage.setItem(ROLE_KEY, r);
+  try {
+    sessionStorage.setItem(ROLE_KEY, r);
+  } catch { /* private mode */ }
+  // Drop any legacy shared role so another tab cannot inherit this unlock.
+  try { localStorage.removeItem(LEGACY_ROLE_KEY); } catch { /* */ }
 }
 
 function writeUnlocked(on: boolean) {
@@ -61,11 +69,7 @@ function emit() {
 
 function subscribe(cb: () => void) {
   listeners.add(cb);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === ROLE_KEY || e.key === UNLOCK_KEY) cb();
-  };
-  window.addEventListener('storage', onStorage);
-  return () => { listeners.delete(cb); window.removeEventListener('storage', onStorage); };
+  return () => { listeners.delete(cb); };
 }
 
 export type UnlockResult = 'ok' | 'wrong-pin' | 'locked' | 'pin-required' | 'set-pin-required';
@@ -97,28 +101,26 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
     return 'ok';
   }
 
-  // Owner
+  // Owner — write role before any save so PUT headers declare Owner for first-PIN bootstrap.
   const settings = loadData().settings;
   const hasPin = !!(settings.ownerPin || settings.ownerPinSet);
 
   if (!hasPin) {
-    // First Owner unlock also sets the PIN so the role is never open without one.
     if (trimmed.length < 4) return 'pin-required';
     if (pinConfirm === undefined) return 'set-pin-required';
     if (pinConfirm.trim() !== trimmed) return 'wrong-pin';
+    writeRole('owner');
     const { update } = await import('./store');
     update(d => { d.settings.ownerPin = trimmed; }, 'bootstrap');
     if (state.remote) {
       const ok = await unlockOwner(trimmed);
       if (ok === 'locked') return 'locked';
       if (ok !== 'ok') {
-        // Local PIN is set; remote may still catch up on next save.
         state.ownerPin = trimmed;
       }
     } else {
       state.ownerPin = trimmed;
     }
-    writeRole('owner');
     writeUnlocked(true);
     emit();
     return 'ok';
