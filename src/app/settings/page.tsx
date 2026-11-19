@@ -1,21 +1,24 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Download, Upload, ShieldCheck, Building2, TriangleAlert } from 'lucide-react';
+import { Download, Upload, ShieldCheck, Building2, TriangleAlert, KeyRound } from 'lucide-react';
 import { useStore, update, exportJSON, replaceAll, resetToSeed, markBackedUp } from '@/lib/store';
 import { useCloud } from '@/lib/sync';
 import { useRole } from '@/lib/role';
+import { hashTeamPin } from '@/lib/role-pins';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, SectionTitle } from '@/components/ui';
 
 export default function SettingsPage() {
   const data = useStore();
   const cloud = useCloud();
-  const { isOwner } = useRole();
+  const { isOwner, canEdit } = useRole();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
+  const [teamPin, setTeamPin] = useState('');
+  const [teamPin2, setTeamPin2] = useState('');
   const [company, setCompany] = useState<string | null>(null);
 
   const download = () => {
@@ -31,6 +34,7 @@ export default function SettingsPage() {
   };
 
   const restore = async (file: File) => {
+    if (!isOwner) return;
     try {
       const parsed = JSON.parse(await file.text());
       if (!parsed || !Array.isArray(parsed.clients)) throw new Error('bad');
@@ -47,11 +51,26 @@ export default function SettingsPage() {
 
   const savePin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOwner) return;
     if (pin.length < 4) return alert('PIN must be at least 4 digits.');
     if (pin !== pin2) return alert('The two PINs do not match.');
-    update(d => { d.settings.ownerPin = pin; });
+    update(d => { d.settings.ownerPin = pin; }, 'owner-settings');
     setPin(''); setPin2('');
     toast('Owner PIN saved');
+  };
+
+  const saveTeamPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isOwner) return;
+    if (teamPin.length < 4) return alert('Team PIN must be at least 4 digits.');
+    if (teamPin !== teamPin2) return alert('The two PINs do not match.');
+    const digest = await hashTeamPin(teamPin);
+    update(d => {
+      d.settings.teamPinHash = digest;
+      d.settings.teamPinSet = true;
+    }, 'owner-settings');
+    setTeamPin(''); setTeamPin2('');
+    toast('Team PIN saved');
   };
 
   const counts = [
@@ -85,26 +104,61 @@ export default function SettingsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" onClick={download}><Download className="h-4 w-4" /> Download backup</Button>
-          <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> Restore from file</Button>
-          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={e => e.target.files?.[0] && restore(e.target.files[0])} />
+          {isOwner && (
+            <>
+              <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> Restore from file</Button>
+              <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={e => e.target.files?.[0] && restore(e.target.files[0])} />
+            </>
+          )}
         </div>
       </Card>
 
       <Card className="p-5 space-y-4">
         <SectionTitle><span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Owner PIN</span></SectionTitle>
         <p className="text-sm text-muted-foreground -mt-2">
-          Payments, expenses and revenue are visible only to the Owner role. A PIN makes switching to Owner require it.
-          {(data.settings.ownerPin || data.settings.ownerPinSet) ? ' A PIN is currently set.' : ' No PIN is set, so anyone using this device can switch to Owner.'}
+          Owner unlocks payments, expenses and revenue. Every role (Owner, Manager, Team) needs its own PIN before that view opens.
+          {(data.settings.ownerPin || data.settings.ownerPinSet) ? ' An Owner PIN is currently set.' : ' No Owner PIN yet — the first Owner unlock will create one.'}
         </p>
         {isOwner ? (
           <form onSubmit={savePin} className="flex flex-wrap gap-2 items-end">
             <Field label="New PIN" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" placeholder="At least 4 digits" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} /></Field>
             <Field label="Repeat" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" value={pin2} onChange={e => setPin2(e.target.value.replace(/\D/g, ''))} /></Field>
             <Button type="submit" variant="primary">{(data.settings.ownerPin || data.settings.ownerPinSet) ? 'Change PIN' : 'Set PIN'}</Button>
-            {data.settings.ownerPin && <Button variant="ghost" type="button" onClick={() => { if (confirm('Remove the Owner PIN? Anyone will be able to switch to Owner and see payments.')) { update(d => { delete d.settings.ownerPin; }); toast('PIN removed'); } }}>Remove</Button>}
+            {data.settings.ownerPin && <Button variant="ghost" type="button" onClick={() => { if (confirm('Remove the Owner PIN? You will need to set a new one the next time someone unlocks Owner.')) { update(d => { delete d.settings.ownerPin; d.settings.ownerPinSet = false; }, 'owner-settings'); toast('PIN removed'); } }}>Remove</Button>}
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">Switch to the Owner role to change the PIN.</p>
+          <p className="text-sm text-muted-foreground">Unlock as Owner to change this PIN.</p>
+        )}
+      </Card>
+
+      <Card className="p-5 space-y-4">
+        <SectionTitle><span className="inline-flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Team & Manager PINs</span></SectionTitle>
+        <p className="text-sm text-muted-foreground -mt-2">
+          Manager uses a fixed PIN set by the Owner (not shown here). Team uses a configurable PIN — default is documented for the Owner; change it below so only your crew knows it.
+          {data.settings.teamPinSet ? ' A custom Team PIN is set.' : ' Team is using the default PIN until you change it.'}
+        </p>
+        {isOwner ? (
+          <form onSubmit={saveTeamPin} className="flex flex-wrap gap-2 items-end">
+            <Field label="New Team PIN" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" placeholder="At least 4 digits" value={teamPin} onChange={e => setTeamPin(e.target.value.replace(/\D/g, ''))} /></Field>
+            <Field label="Repeat" className="w-36"><Input type="password" inputMode="numeric" autoComplete="off" value={teamPin2} onChange={e => setTeamPin2(e.target.value.replace(/\D/g, ''))} /></Field>
+            <Button type="submit" variant="primary">{data.settings.teamPinSet ? 'Change Team PIN' : 'Set Team PIN'}</Button>
+            {data.settings.teamPinSet && (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  if (confirm('Reset Team PIN to the default?')) {
+                    update(d => { delete d.settings.teamPinHash; delete d.settings.teamPinSet; }, 'owner-settings');
+                    toast('Team PIN reset to default');
+                  }
+                }}
+              >
+                Use default
+              </Button>
+            )}
+          </form>
+        ) : (
+          <p className="text-sm text-muted-foreground">Unlock as Owner to change the Team PIN.</p>
         )}
       </Card>
 
@@ -112,9 +166,11 @@ export default function SettingsPage() {
         <SectionTitle><span className="inline-flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Company</span></SectionTitle>
         <div className="flex flex-wrap gap-2 items-end">
           <Field label="Name shown in the app" className="flex-1 min-w-56">
-            <Input value={company ?? data.settings.companyName} onChange={e => setCompany(e.target.value)} />
+            <Input value={company ?? data.settings.companyName} onChange={e => setCompany(e.target.value)} disabled={!canEdit} />
           </Field>
-          <Button onClick={() => { update(d => { d.settings.companyName = (company ?? d.settings.companyName).trim() || d.settings.companyName; }); setCompany(null); toast('Saved'); }}>Save</Button>
+          {canEdit && (
+            <Button onClick={() => { update(d => { d.settings.companyName = (company ?? d.settings.companyName).trim() || d.settings.companyName; }); setCompany(null); toast('Saved'); }}>Save</Button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">Orbitcore · Orai, Uttar Pradesh · orbitcore.in</p>
       </Card>

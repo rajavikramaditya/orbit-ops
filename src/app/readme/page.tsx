@@ -35,7 +35,7 @@ export default function ReadmePage() {
 
       <section>
         <h2 className="font-medium mb-2">Roles</h2>
-        <p className="text-muted-foreground">Owner sees payments, expenses and revenue. Manager and Team do not. Set an Owner PIN in <Link href="/settings" className="text-foreground underline">Settings</Link> so switching to Owner needs it. The role is per device.</p>
+        <p className="text-muted-foreground">Every role needs its PIN before that view opens. Use <strong className="text-foreground">Switch Role</strong> to lock and pick another. <strong className="text-foreground">Owner</strong> sees payments, expenses and revenue. <strong className="text-foreground">Manager</strong> can edit clients, requests, content and tasks, but not revenue. <strong className="text-foreground">Team</strong> is read-only and does not see phone numbers or other contact details. Set Owner and Team PINs in <Link href="/settings" className="text-foreground underline">Settings</Link>. The unlocked role is per browser tab.</p>
       </section>
 
       <section>

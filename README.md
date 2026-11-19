@@ -62,11 +62,13 @@ Churned clients move to Bin and leave the active list.
 
 ## Roles (current model)
 
-- **Owner** — Full visibility including payments and expenses
-- **Manager** — Day-to-day client and content ownership
-- **Team** — Assigned work
+Every role requires a PIN unlock before that view is usable. **Switch Role** locks the tab and asks for the next role’s PIN.
 
-The team shares one access key. Payments stay behind the Owner PIN. There is no separate login for each person.
+- **Owner** — Full access including payments, expenses and revenue. Owner PIN is set in Settings (or on first Owner unlock).
+- **Manager** — Can edit clients, requests, content, tasks and team roster. Cannot open Revenue or change payments/expenses. Manager PIN is fixed (hashed in the app; plaintext is not shipped in source).
+- **Team** — Read-only operational progress (client names, delivery pace, pipeline). No contact/PII (phone, contact name, Instagram) and no edits. Default Team PIN is `246810` until Owner changes it in Settings (stored as a hash).
+
+The team shares one access key for the database. Payments stay behind the Owner PIN. There is no separate login for each person.
 
 ---
 

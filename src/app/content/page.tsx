@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore, update, uid, touch, logActivity, clientName, today, STAGES, type Stage, type ContentItem } from '@/lib/store';
+import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, Select, Segmented, EmptyState, Sheet, Badge } from '@/components/ui';
 
@@ -11,6 +12,7 @@ const blank = { clientId: '', title: '', stage: 'idea' as Stage, assignee: '', d
 
 export default function ContentPage() {
   const data = useStore();
+  const { canEdit } = useRole();
   const toast = useToast();
   const [view, setView] = useState<'board' | 'calendar'>('board');
   const [clientFilter, setClientFilter] = useState('');
@@ -24,6 +26,7 @@ export default function ContentPage() {
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     update(d => {
       d.content.unshift({ id: uid(), clientId: form.clientId, title: form.title.trim(), stage: form.stage, assignee: form.assignee, due: form.due || undefined, createdAt: new Date().toISOString(), stageAt: new Date().toISOString() });
       logActivity(d, form.clientId, `Content added: ${form.title.trim()}`);
@@ -35,6 +38,7 @@ export default function ContentPage() {
   };
 
   const move = (id: string, stage: Stage) => {
+    if (!canEdit) return;
     update(d => {
       const item = d.content.find(x => x.id === id);
       const c = item && d.clients.find(x => x.id === item.clientId);
@@ -49,6 +53,7 @@ export default function ContentPage() {
   };
 
   const remove = (id: string) => {
+    if (!canEdit) return;
     if (!confirm('Delete this content item? If it was posted, the client count is reduced by one.')) return;
     update(d => {
       const item = d.content.find(x => x.id === id);
@@ -64,7 +69,7 @@ export default function ContentPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       <PageHeader title="Content" subtitle="Idea to posted, one stage at a time"
-        actions={<Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Content</Button>}>
+        actions={canEdit ? <Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Content</Button> : undefined}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <Segmented<'board' | 'calendar'> value={view} onChange={setView} options={[{ value: 'board', label: 'Board' }, { value: 'calendar', label: 'Calendar' }]} />
           <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)} className="sm:w-56 sm:ml-auto">
@@ -74,7 +79,7 @@ export default function ContentPage() {
         </div>
       </PageHeader>
 
-      {data.content.length === 0 && view === 'board' && <EmptyState title="Pipeline is empty" hint="Add every video, reel and poster here. Moving an item to Posted updates the client's monthly count automatically." action={<Button size="sm" variant="primary" onClick={() => setShow(true)}>Add content</Button>} />}
+      {data.content.length === 0 && view === 'board' && <EmptyState title="Pipeline is empty" hint="Add every video, reel and poster here. Moving an item to Posted updates the client's monthly count automatically." action={canEdit ? <Button size="sm" variant="primary" onClick={() => setShow(true)}>Add content</Button> : undefined} />}
 
       {view === 'board' ? (
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 md:mx-0 md:px-0">
@@ -87,7 +92,7 @@ export default function ContentPage() {
                   <span className="text-[11px] tabular-nums text-muted-foreground">{col.length}</span>
                 </div>
                 <div className="space-y-2 min-h-24">
-                  {col.map(item => <ContentCard key={item.id} item={item} name={clientName(data, item.clientId)} onMove={s => move(item.id, s)} onDelete={() => remove(item.id)} />)}
+                  {col.map(item => <ContentCard key={item.id} item={item} name={clientName(data, item.clientId)} canEdit={canEdit} onMove={s => move(item.id, s)} onDelete={() => remove(item.id)} />)}
                 </div>
               </div>
             );
@@ -126,7 +131,7 @@ export default function ContentPage() {
   );
 }
 
-function ContentCard({ item, name, onMove, onDelete }: { item: ContentItem; name?: string; onMove: (s: Stage) => void; onDelete: () => void }) {
+function ContentCard({ item, name, canEdit, onMove, onDelete }: { item: ContentItem; name?: string; canEdit: boolean; onMove: (s: Stage) => void; onDelete: () => void }) {
   const idx = STAGES.indexOf(item.stage);
   return (
     <Card className="p-3 space-y-2">
@@ -136,11 +141,17 @@ function ContentCard({ item, name, onMove, onDelete }: { item: ContentItem; name
         {item.assignee && <span className="shrink-0">{item.assignee}</span>}
       </div>
       {item.due && <p className={`text-[11px] ${item.due < today() && item.stage !== 'posted' ? 'text-red' : 'text-muted-foreground'}`}>Due {item.due.slice(5)}</p>}
-      <div className="flex items-center gap-1 pt-1">
-        <button disabled={idx === 0} onClick={() => onMove(STAGES[idx - 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">← {idx > 0 ? STAGES[idx - 1] : ''}</button>
-        <button disabled={idx === STAGES.length - 1} onClick={() => onMove(STAGES[idx + 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">{idx < STAGES.length - 1 ? STAGES[idx + 1] : ''} →</button>
-      </div>
-      <button onClick={onDelete} className="text-[11px] text-muted-foreground hover:text-red">Delete</button>
+      {canEdit ? (
+        <>
+          <div className="flex items-center gap-1 pt-1">
+            <button disabled={idx === 0} onClick={() => onMove(STAGES[idx - 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">← {idx > 0 ? STAGES[idx - 1] : ''}</button>
+            <button disabled={idx === STAGES.length - 1} onClick={() => onMove(STAGES[idx + 1])} className="flex-1 text-[11px] rounded-lg border py-1 hover:bg-muted disabled:opacity-30">{idx < STAGES.length - 1 ? STAGES[idx + 1] : ''} →</button>
+          </div>
+          <button onClick={onDelete} className="text-[11px] text-muted-foreground hover:text-red">Delete</button>
+        </>
+      ) : (
+        <Badge>{item.stage}</Badge>
+      )}
     </Card>
   );
 }

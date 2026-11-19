@@ -122,6 +122,10 @@ export interface Settings {
   ownerPin?: string;
   /** True when a PIN exists on the server. The PIN itself is never sent to the browser. */
   ownerPinSet?: boolean;
+  /** SHA-256 hex of the Team role PIN (`orbit-ops:team:…`). When missing, the default Team PIN hash is used. */
+  teamPinHash?: string;
+  /** True when a custom Team PIN has been set (local or synced). */
+  teamPinSet?: boolean;
   currency: string;
 }
 
@@ -414,8 +418,30 @@ state.applyRemote = (data: AppData) => {
   try { saveData(migrate(data)); } finally { state.applyingRemote = false; }
 };
 
-/** Mutate a fresh copy of the data and persist it. */
-export function update(fn: (d: AppData) => void) {
+export type MutationKind = 'work' | 'money' | 'owner-settings' | 'bootstrap';
+
+function roleAllowsMutation(kind: MutationKind): boolean {
+  if (kind === 'bootstrap') return true;
+  if (typeof window === 'undefined') return true;
+  let unlocked = false;
+  let role: Role = 'team';
+  try {
+    unlocked = sessionStorage.getItem('orbit-ops-role-unlocked') === '1';
+    const r = sessionStorage.getItem('orbit-ops-role');
+    if (r === 'owner' || r === 'manager' || r === 'team') role = r;
+  } catch { return false; }
+  if (!unlocked) return false;
+  if (kind === 'money' || kind === 'owner-settings') return role === 'owner';
+  return role === 'owner' || role === 'manager';
+}
+
+/**
+ * Mutate a fresh copy of the data and persist it.
+ * Team is read-only. Money / Owner settings require Owner. Work edits need Owner or Manager.
+ * Pass `bootstrap` only for first-time Owner PIN setup during unlock.
+ */
+export function update(fn: (d: AppData) => void, kind: MutationKind = 'work') {
+  if (!roleAllowsMutation(kind)) return loadData();
   const data: AppData = JSON.parse(JSON.stringify(loadData()));
   fn(data);
   saveData(data);

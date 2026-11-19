@@ -5,6 +5,7 @@ import { Nav } from "@/components/nav";
 import { ToastProvider } from "@/components/toast";
 import { StoreBootstrap } from "@/components/store-bootstrap";
 import { CloudGate } from "@/components/cloud-gate";
+import { RoleGate } from "@/components/role-gate";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-geist-sans" });
 
@@ -31,10 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StoreBootstrap>
         <ToastProvider>
           <CloudGate>
+          <RoleGate>
           <div className="flex min-h-screen flex-col md:flex-row">
             <Nav />
             <main className="flex-1 min-w-0 px-4 py-5 sm:px-6 md:px-8 md:py-8 pb-28 md:pb-10">{children}</main>
           </div>
+          </RoleGate>
           </CloudGate>
         </ToastProvider>
         </StoreBootstrap>
