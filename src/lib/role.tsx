@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
 import { state } from './store-cache';
-import { forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
+import { cloudMode, forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
 import { managerPinMatches, teamPinMatches } from './role-pins';
 import { canEditMoney, canEditWork, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
@@ -179,7 +179,7 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
   return 'ok';
 }
 
-/** Clear the unlocked session and return to the role gate (Switch Role). */
+/** Clear the unlocked session and return to the role PIN gate (local-only). */
 export function lockRole() {
   writeUnlocked(false);
   lockOwner();
@@ -187,15 +187,31 @@ export function lockRole() {
 }
 
 /**
- * Leave the team access session entirely (Switch Account).
- * Clears the tab unlock and the stored access key so CloudGate shows Sign in.
- * Do not call lockOwner() here — it may reconnect with the old key and race.
+ * Return to the primary Sign-in screen (team access-key CloudGate).
+ * Used by Switch Role and Switch Account when a remote workspace is configured.
+ * Clears the tab unlock and the stored access key. Do not call lockOwner() —
+ * it may reconnect with the old key and race.
  */
 export function switchAccount() {
   writeUnlocked(false);
   state.ownerPin = '';
   forgetAccessKey();
   emit();
+}
+
+/**
+ * Switch Role: return to the original main login page.
+ * Remote workspace → branded team access-key Sign in (CloudGate).
+ * Local-only (no access-key page) → role PIN gate.
+ */
+export function leaveToLogin() {
+  const mode = cloudMode();
+  const hadKey = typeof window !== 'undefined' && !!localStorage.getItem('orbit-ops-access-key');
+  if (mode === 'remote' || mode === 'locked' || hadKey || state.remote) {
+    switchAccount();
+    return;
+  }
+  lockRole();
 }
 
 /** @deprecated Prefer unlockRole — kept for any leftover callers. */
@@ -224,6 +240,7 @@ export function useRole() {
     unlockRole,
     lockRole,
     switchAccount,
+    leaveToLogin,
     switchRole,
   };
 }

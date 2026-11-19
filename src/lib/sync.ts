@@ -200,8 +200,9 @@ export async function saveAccessKey(key: string) {
 }
 
 /**
- * Drop the team access key and return to the access-key gate.
- * Used by Switch Account — not by Switch Role (which only clears the tab PIN unlock).
+ * Drop the team access key and show the primary Sign-in gate (CloudGate).
+ * Used by Switch Role / Switch Account so users land on the real access-key
+ * login — not the role PIN middle screen and not a blank page.
  */
 export function forgetAccessKey() {
   localStorage.removeItem(KEY_ACCESS);
@@ -210,8 +211,8 @@ export function forgetAccessKey() {
   cloud.holdPush = false;
   cloud.migrateOffer = false;
   cloud.latest = null;
-  // Always show the Sign-in gate after leaving the team session.
-  // connectCloud without a key yields locked (401) when remote is configured.
+  // Force the branded access-key Sign-in immediately. Do not await connectCloud
+  // first — that can flash RoleGate / a blank middle state.
   cloud.mode = 'locked';
   cloud.problem = '';
   emit();

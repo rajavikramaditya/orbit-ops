@@ -53,7 +53,7 @@ function useBadges() {
 
 export function Nav() {
   const pathname = usePathname();
-  const { role, isOwner, unlocked, lockRole, switchAccount } = useRole();
+  const { role, isOwner, unlocked, leaveToLogin, switchAccount } = useRole();
   const cloud = useCloud();
   const toast = useToast();
   const [more, setMore] = useState(false);
@@ -66,9 +66,10 @@ export function Nav() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
   const canSwitchAccount = cloud.mode === 'remote';
 
+  /** Switch Role returns to the original access-key Sign-in (not RoleGate). */
   const onSwitchRole = () => {
-    lockRole();
-    toast('Enter a PIN to switch role');
+    leaveToLogin();
+    toast(canSwitchAccount ? 'Enter the team access key' : 'Enter a PIN to continue');
   };
 
   const onSwitchAccount = () => {
@@ -199,8 +200,7 @@ export function Nav() {
         )}
         <p className="mt-3 text-[11px] text-muted-foreground">
           Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>.
-          {' '}Switch Role locks this tab until the next PIN.
-          {canSwitchAccount ? ' Switch Account returns to the team access-key sign-in.' : ''}
+          {' '}Switch Role returns to the team access-key sign-in, then a role PIN unlock.
         </p>
       </Sheet>
     </>

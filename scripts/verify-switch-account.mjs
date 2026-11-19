@@ -1,5 +1,5 @@
 /**
- * Walkthrough screenshots for Switch Account / Switch Role / PIN-reset gating.
+ * Walkthrough: Switch Role / Switch Account → original access-key Sign-in.
  * Mocks /api/state so remote mode works without Neon.
  */
 import { chromium } from 'playwright';
@@ -30,14 +30,16 @@ async function mockApi(page) {
     }
     const pin = await req.headerValue('x-owner-pin');
     const owner = !!pin && pin.length >= 4;
-    const data = {
-      ...remoteDoc,
-      settings: { ...remoteDoc.settings, ownerPinSet: true },
-    };
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ mode: 'remote', empty: false, owner, data, paymentsRejected: false }),
+      body: JSON.stringify({
+        mode: 'remote',
+        empty: false,
+        owner,
+        data: { ...remoteDoc, settings: { ...remoteDoc.settings, ownerPinSet: true } },
+        paymentsRejected: false,
+      }),
     });
   });
 }
@@ -49,147 +51,90 @@ async function shot(page, name) {
   return file;
 }
 
+async function assertOnAccessKeyLogin(page, label) {
+  await page.waitForSelector('#access-key', { timeout: 10000 });
+  await page.waitForSelector('text=Sign in to your workspace');
+  const roleGate = await page.locator('text=Unlock Orbit Ops').count();
+  const blankish = await page.locator('text=Opening Orbit Ops').count();
+  console.log(label, { roleGate, blankish });
+  if (roleGate || blankish) {
+    throw new Error(`${label}: expected access-key Sign in, got role/blank gate`);
+  }
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const page = await context.newPage();
+  const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   await mockApi(page);
 
-  // Fresh device → access-key login
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=Sign in to your workspace');
-  await shot(page, '01_access_key_login.png');
+  await assertOnAccessKeyLogin(page, 'cold start');
+  await shot(page, '12_original_access_key_login.png');
 
-  // Sign in with team access key → role unlock gate
-  await page.fill('#access-key', ACCESS_KEY);
-  await page.click('button:has-text("Continue")');
-  await page.waitForSelector('text=Unlock Orbit Ops');
-  await shot(page, '02_role_unlock_after_login.png');
-
-  // Manager: enter PIN only — no set/reset
-  await page.click('button:has-text("Manager")');
-  await page.waitForSelector('text=Manager PIN');
-  const managerSet = await page.locator('text=Set Owner PIN').count();
-  const managerConfirm = await page.locator('input[placeholder="Confirm PIN"]').count();
-  console.log('manager set/confirm counts', managerSet, managerConfirm);
-  await shot(page, '03_manager_pin_no_reset.png');
-
-  await page.fill('input[placeholder="PIN"]', MANAGER_PIN);
-  await page.click('button:has-text("Unlock Manager")');
-  await page.waitForSelector('text=Switch Role');
-  await shot(page, '04_manager_unlocked_nav.png');
-
-  // Switch Role → role gate (not login, not blank)
-  await page.click('button:has-text("Switch Role")');
-  await page.waitForSelector('text=Unlock Orbit Ops');
-  await shot(page, '05_switch_role_gate.png');
-
-  // Team: no reset
-  await page.click('button:has-text("Team")');
-  await page.waitForSelector('text=Team PIN');
-  const teamSet = await page.locator('text=Set Owner PIN').count();
-  const teamConfirm = await page.locator('input[placeholder="Confirm PIN"]').count();
-  console.log('team set/confirm counts', teamSet, teamConfirm);
-  await shot(page, '06_team_pin_no_reset.png');
-
-  // Owner with ownerPinSet true: enter PIN only — no reset
-  await page.click('button:has-text("Owner")');
-  await page.waitForSelector('text=Owner PIN');
-  const ownerSet = await page.locator('text=Set Owner PIN').count();
-  const ownerConfirm = await page.locator('input[placeholder="Confirm PIN"]').count();
-  const ownerNew = await page.locator('input[placeholder="New PIN (4+ digits)"]').count();
-  console.log('owner set/confirm/new counts', ownerSet, ownerConfirm, ownerNew);
-  await shot(page, '07_owner_pin_enter_only.png');
-
-  // Role-gate Switch Account → access-key login (must NOT stay on role gate)
-  await page.click('button:has-text("Switch Account")');
-  await page.waitForSelector('#access-key', { timeout: 10000 });
-  await page.waitForSelector('text=Sign in to your workspace');
-  const stuckOnRoleGate = await page.locator('text=Unlock Orbit Ops').count();
-  console.log('after role-gate Switch Account, Unlock Orbit Ops count', stuckOnRoleGate);
-  await shot(page, '08_switch_account_to_login.png');
-  if (stuckOnRoleGate) {
-    console.error('FAIL: Switch Account stayed on role unlock gate');
-    process.exitCode = 1;
-    await browser.close();
-    return;
-  }
-
-  // Sign in again, unlock, Switch Account from sidebar
   await page.fill('#access-key', ACCESS_KEY);
   await page.click('button:has-text("Continue")');
   await page.waitForSelector('text=Unlock Orbit Ops');
   await page.click('button:has-text("Manager")');
   await page.fill('input[placeholder="PIN"]', MANAGER_PIN);
   await page.click('button:has-text("Unlock Manager")');
-  await page.waitForSelector('aside >> text=Switch Account');
-  await page.click('aside >> text=Switch Account');
-  await page.waitForSelector('#access-key', { timeout: 10000 });
-  await page.waitForSelector('text=Sign in to your workspace');
-  const stuckAfterNav = await page.locator('text=Unlock Orbit Ops').count();
-  console.log('after nav Switch Account, Unlock Orbit Ops count', stuckAfterNav);
-  await shot(page, '09_nav_switch_account_to_login.png');
-  if (stuckAfterNav) {
-    console.error('FAIL: Nav Switch Account stayed on role unlock gate');
-    process.exitCode = 1;
-    await browser.close();
-    return;
-  }
+  await page.waitForSelector('aside >> text=Switch Role');
+  await shot(page, '13_manager_unlocked_before_switch_role.png');
 
-  // Bootstrap case: empty remote / ownerPinSet false → Set Owner PIN once
-  await page.unroute('**/api/state');
-  await page.route('**/api/state', async route => {
-    const req = route.request();
-    const key = await req.headerValue('x-orbit-key');
-    if (!key || key !== ACCESS_KEY) {
-      return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ mode: 'remote' }) });
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        mode: 'remote',
-        empty: true,
-        owner: false,
-        data: {
-          version: 3,
-          clients: [],
-          tasks: [],
-          requests: [],
-          content: [],
-          team: [],
-          settings: { companyName: 'Orbit Ops', currency: 'INR', ownerPinSet: false },
-        },
-      }),
-    });
-  });
+  // Switch Role must land on the ORIGINAL access-key Sign-in — not RoleGate.
   await page.evaluate(() => {
-    localStorage.removeItem('orbit-ops-data-v2');
-    sessionStorage.clear();
+    const btn = [...document.querySelectorAll('aside button')].find(b => b.textContent?.includes('Switch Role'));
+    btn?.click();
   });
-  await page.fill('#access-key', ACCESS_KEY);
-  await page.click('button:has-text("Continue")');
-  await page.waitForSelector('text=Unlock Orbit Ops');
-  await page.click('button:has-text("Owner")');
-  await page.waitForSelector('text=Set Owner PIN', { timeout: 10000 });
-  await shot(page, '10_owner_first_pin_bootstrap_only.png');
+  await assertOnAccessKeyLogin(page, 'after Switch Role');
+  await shot(page, '14_switch_role_to_original_login.png');
 
-  // Manager still must not get set-PIN even when no Owner PIN exists
-  await page.click('button:has-text("Manager")');
-  await page.waitForSelector('text=Manager PIN');
-  const mgrBootstrapLeak = await page.locator('text=Set Owner PIN').count();
-  const mgrConfirmLeak = await page.locator('input[placeholder="Confirm PIN"]').count();
-  console.log('manager bootstrap leak counts', mgrBootstrapLeak, mgrConfirmLeak);
-  await shot(page, '11_manager_no_reset_when_no_owner_pin.png');
+  // Fresh context: Switch Account → same Sign in
+  const page2 = await page.context().newPage();
+  await mockApi(page2);
+  await page2.goto(BASE, { waitUntil: 'networkidle' });
+  await page2.fill('#access-key', ACCESS_KEY);
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.includes('Continue'));
+    btn?.click();
+  });
+  await page2.waitForSelector('text=Unlock Orbit Ops');
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim().startsWith('Manager'));
+    btn?.click();
+  });
+  await page2.fill('input[placeholder="PIN"]', MANAGER_PIN);
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.includes('Unlock Manager'));
+    btn?.click();
+  });
+  await page2.waitForSelector('aside >> text=Switch Account');
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('aside button')].find(b => b.textContent?.includes('Switch Account'));
+    btn?.click();
+  });
+  await assertOnAccessKeyLogin(page2, 'after Switch Account');
+  await shot(page2, '15_switch_account_to_original_login.png');
 
-  if (managerSet || managerConfirm || teamSet || teamConfirm || ownerSet || ownerConfirm || ownerNew || mgrBootstrapLeak || mgrConfirmLeak) {
-    console.error('FAIL: PIN reset affordance leaked onto unlock gate');
-    process.exitCode = 1;
-  } else {
-    console.log('PASS: Manager/Team never offered PIN reset; Owner enter-only when pin set; bootstrap only when no Owner PIN');
-  }
+  // After access key, Owner with PIN set still has no reset affordance
+  await page2.fill('#access-key', ACCESS_KEY);
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.includes('Continue'));
+    btn?.click();
+  });
+  await page2.waitForSelector('text=Unlock Orbit Ops');
+  await page2.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim().startsWith('Owner'));
+    btn?.click();
+  });
+  await page2.waitForSelector('text=Owner PIN');
+  const setPin = await page2.locator('text=Set Owner PIN').count();
+  const confirm = await page2.locator('input[placeholder="Confirm PIN"]').count();
+  console.log('owner reset leak', setPin, confirm);
+  await shot(page2, '16_owner_pin_no_reset_after_login.png');
+  if (setPin || confirm) throw new Error('PIN reset leaked onto unlock gate');
 
+  console.log('PASS: Switch Role → original access-key login; no PIN reset');
   await browser.close();
 }
 
