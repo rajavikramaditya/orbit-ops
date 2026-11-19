@@ -3,12 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, ChevronDown } from 'lucide-react';
+import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, ROLE_LABEL } from '@/lib/role';
-import { unlockOwner } from '@/lib/sync';
-import { loadData, useStore, type Role } from '@/lib/store';
-import { Sheet, Button, Input } from '@/components/ui';
+import { useStore } from '@/lib/store';
+import { Sheet } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { OrbitMark } from '@/components/orbit-mark';
 
@@ -53,7 +52,8 @@ function useBadges() {
 
 export function Nav() {
   const pathname = usePathname();
-  const { role, isOwner } = useRole();
+  const { role, isOwner, unlocked, lockRole } = useRole();
+  const toast = useToast();
   const [more, setMore] = useState(false);
   const badges = useBadges();
 
@@ -63,6 +63,11 @@ export function Nav() {
   const secondary = allItems.filter(i => !mobilePrimary.includes(i.href) && visible(i));
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
+  const switchRole = () => {
+    lockRole();
+    toast('Enter a PIN to switch role');
+  };
+
   return (
     <>
       {/* Mobile top bar */}
@@ -71,7 +76,17 @@ export function Nav() {
           <OrbitMark className="h-8 w-8 text-foreground" />
           <p className="font-semibold text-sm leading-none tracking-tight">Orbit Ops</p>
         </Link>
-        <RoleSwitcher compact />
+        {unlocked && (
+          <button
+            type="button"
+            onClick={switchRole}
+            className="inline-flex items-center gap-1.5 rounded-xl border bg-card px-2.5 py-1.5 text-xs hover:bg-muted"
+          >
+            <span className={cn('h-2 w-2 rounded-full', role === 'owner' ? 'bg-green' : role === 'manager' ? 'bg-amber' : 'bg-muted-foreground')} />
+            <span>{ROLE_LABEL[role]}</span>
+            <RefreshCw className="h-3 w-3 text-muted-foreground" />
+          </button>
+        )}
       </header>
 
       {/* Desktop sidebar */}
@@ -105,8 +120,20 @@ export function Nav() {
             );
           })}
         </nav>
-        <div className="pt-4 border-t">
-          <RoleSwitcher />
+        <div className="pt-4 border-t space-y-2">
+          <div className="flex items-center gap-2 px-3 py-1 text-sm">
+            <span className={cn('h-2 w-2 rounded-full', role === 'owner' ? 'bg-green' : role === 'manager' ? 'bg-amber' : 'bg-muted-foreground')} />
+            <span className="text-muted-foreground">Signed in as </span>
+            <span className="font-medium">{ROLE_LABEL[role]}</span>
+          </div>
+          <button
+            type="button"
+            onClick={switchRole}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Switch Role
+          </button>
         </div>
       </aside>
 
@@ -134,80 +161,15 @@ export function Nav() {
             </Link>
           ))}
         </div>
-        <p className="text-[11px] text-muted-foreground">Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>. Change role from the top bar.</p>
-      </Sheet>
-    </>
-  );
-}
-
-function RoleSwitcher({ compact }: { compact?: boolean }) {
-  const { role, switchRole } = useRole();
-  const data = useStore();
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [pin, setPin] = useState('');
-  const [err, setErr] = useState('');
-
-  const pick = (r: Role) => {
-    const res = switchRole(r);
-    if (res === 'ok') { setOpen(false); toast(`Role: ${ROLE_LABEL[r]}`); return; }
-    setErr('');
-    setPin('');
-  };
-
-  const unlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const settings = loadData().settings;
-    if (settings.ownerPinSet && !settings.ownerPin) {
-      const ok = await unlockOwner(pin);
-      if (ok === 'locked') { setErr('Too many tries. Wait 15 minutes.'); return; }
-      if (ok !== 'ok') { setErr('Wrong PIN'); return; }
-    }
-    const res = switchRole('owner', pin);
-    if (res === 'ok') { setOpen(false); setPin(''); setErr(''); toast('Owner unlocked'); }
-    else setErr('Wrong PIN');
-  };
-
-  const needsPin = !!(data.settings.ownerPin || data.settings.ownerPinSet) && role !== 'owner';
-
-  return (
-    <>
-      <button onClick={() => setOpen(true)} className={cn('flex items-center gap-2 rounded-xl border bg-card text-sm hover:bg-muted transition-colors', compact ? 'px-2.5 py-1.5 text-xs' : 'w-full px-3 py-2')}>
-        <span className={cn('h-2 w-2 rounded-full', role === 'owner' ? 'bg-green' : role === 'manager' ? 'bg-amber' : 'bg-muted-foreground')} />
-        <span className="flex-1 text-left">{compact ? ROLE_LABEL[role] : <><span className="text-muted-foreground">Signed in as </span>{ROLE_LABEL[role]}</>}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
-
-      <Sheet open={open} onClose={() => setOpen(false)} title="Who is using this device?">
-        <div className="space-y-2">
-          {(['owner', 'manager', 'team'] as Role[]).map(r => (
-            <button key={r} onClick={() => pick(r)} className={cn('w-full flex items-center justify-between rounded-2xl border p-4 text-left text-sm', role === r ? 'bg-foreground text-background' : 'hover:bg-muted')}>
-              <div>
-                <p className="font-medium">{ROLE_LABEL[r]}</p>
-                <p className={cn('text-xs mt-0.5', role === r ? 'text-background/70' : 'text-muted-foreground')}>
-                  {r === 'owner' ? 'Everything, including payments, expenses and revenue' : r === 'manager' ? 'Clients, requests, content and tasks' : 'Assigned work only'}
-                </p>
-              </div>
-              {r === 'owner' && needsPin && <Lock className="h-4 w-4 opacity-70" />}
-            </button>
-          ))}
-        </div>
-        {needsPin && (
-          <form onSubmit={unlock} className="rounded-2xl border bg-muted/60 p-4 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-card border"><Lock className="h-4 w-4" /></span>
-              <div>
-                <p className="text-sm font-medium leading-tight">Owner access is locked</p>
-                <p className="text-xs text-muted-foreground">Enter your PIN to see payments and revenue.</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Input type="password" inputMode="numeric" autoComplete="off" placeholder="Owner PIN" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setErr(''); }} className="flex-1 h-11 text-center tracking-[0.4em]" />
-              <Button type="submit" variant="primary" className="h-11 px-5">Unlock</Button>
-            </div>
-            {err && <p role="alert" className="text-xs text-red">{err}</p>}
-          </form>
-        )}
+        <button
+          type="button"
+          onClick={() => { setMore(false); switchRole(); }}
+          className="mt-2 w-full flex items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium hover:bg-muted"
+        >
+          <Lock className="h-4 w-4" />
+          Switch Role
+        </button>
+        <p className="mt-3 text-[11px] text-muted-foreground">Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>. Switching roles locks this device until you enter the next PIN.</p>
       </Sheet>
     </>
   );

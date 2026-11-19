@@ -16,7 +16,7 @@ export default function ClientDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const data = useStore();
-  const { isOwner } = useRole();
+  const { isOwner, canEdit, canPii, canFees } = useRole();
   const toast = useToast();
   const client = data.clients.find(c => c.id === id);
 
@@ -44,6 +44,7 @@ export default function ClientDetailPage() {
   const gap = pace.gap;
 
   const setStatus = (status: Client['status']) => {
+    if (!canEdit) return;
     if (status === 'Churned' && !confirm(`${client.name} will move to the Bin. Continue?`)) return;
     update(d => {
       const c = d.clients.find(x => x.id === id);
@@ -56,6 +57,7 @@ export default function ClientDetailPage() {
   };
 
   const adjustPosted = (delta: number) => {
+    if (!canEdit) return;
     update(d => {
       const c = d.clients.find(x => x.id === id);
       if (!c) return;
@@ -69,6 +71,7 @@ export default function ClientDetailPage() {
 
   const saveEdit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     update(d => {
       const c = d.clients.find(x => x.id === id);
       if (!c) return;
@@ -109,7 +112,7 @@ export default function ClientDetailPage() {
 
   const saveMoney = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!money) return;
+    if (!money || !isOwner) return;
     const amount = +mForm.amount;
     if (!(amount > 0)) return;
     update(d => {
@@ -133,23 +136,25 @@ export default function ClientDetailPage() {
         }
       }
       touch(d, id);
-    });
+    }, 'money');
     setMoney(null);
     toast(money.editing ? 'Updated' : 'Recorded');
   };
 
   const removeMoney = (kind: 'payment' | 'expense', mid: string) => {
+    if (!isOwner) return;
     if (!confirm('Delete this entry?')) return;
     update(d => {
       const c = d.clients.find(x => x.id === id);
       if (!c) return;
       if (kind === 'payment') c.payments = (c.payments || []).filter(p => p.id !== mid);
       else c.expenses = (c.expenses || []).filter(x => x.id !== mid);
-    });
+    }, 'money');
     toast('Deleted');
   };
 
   const moveContent = (cid: string, stage: Stage) => {
+    if (!canEdit) return;
     update(d => {
       const item = d.content.find(x => x.id === cid);
       const c = d.clients.find(x => x.id === id);
@@ -164,6 +169,7 @@ export default function ClientDetailPage() {
   };
 
   const toggleTask = (tid: string) => {
+    if (!canEdit) return;
     update(d => {
       const t = d.tasks.find(x => x.id === tid);
       if (!t) return;
@@ -176,6 +182,7 @@ export default function ClientDetailPage() {
   };
 
   const startEdit = () => {
+    if (!canEdit) return;
     setForm({ ...client });
     setEditing(true);
   };
@@ -192,41 +199,55 @@ export default function ClientDetailPage() {
             <HealthBadge health={client.health} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{[client.industry, client.city, client.owner && `owned by ${client.owner}`].filter(Boolean).join(' · ')}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {client.phone && <a href={`tel:${client.phone}`} className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-muted"><Phone className="h-3 w-3" /> {client.phone}</a>}
-            {client.instagram && <a href={`https://instagram.com/${client.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-muted"><ExternalLink className="h-3 w-3" /> {client.instagram}</a>}
-            {client.contactName && <span className="text-xs rounded-full border px-2.5 py-1 text-muted-foreground">{client.contactName}</span>}
-          </div>
+          {canPii && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {client.phone && <a href={`tel:${client.phone}`} className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-muted"><Phone className="h-3 w-3" /> {client.phone}</a>}
+              {client.instagram && <a href={`https://instagram.com/${client.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-muted"><ExternalLink className="h-3 w-3" /> {client.instagram}</a>}
+              {client.contactName && <span className="text-xs rounded-full border px-2.5 py-1 text-muted-foreground">{client.contactName}</span>}
+            </div>
+          )}
         </div>
-        <Button size="sm" onClick={startEdit}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+        {canEdit && <Button size="sm" onClick={startEdit}><Pencil className="h-3.5 w-3.5" /> Edit</Button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">Status</span>
-        <Segmented<Client['status']>
-          value={client.status}
-          onChange={setStatus}
-          options={STATUSES.map(s => ({ value: s, label: s === 'Churned' ? 'Churned · bin' : s }))}
-        />
+        {canEdit ? (
+          <Segmented<Client['status']>
+            value={client.status}
+            onChange={setStatus}
+            options={STATUSES.map(s => ({ value: s, label: s === 'Churned' ? 'Churned · bin' : s }))}
+          />
+        ) : (
+          <Badge>{client.status}</Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">This cycle</p>
           <div className="flex items-center gap-2 mt-1">
-            <button onClick={() => adjustPosted(-1)} aria-label="Decrease" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Minus className="h-3.5 w-3.5" /></button>
+            {canEdit && <button onClick={() => adjustPosted(-1)} aria-label="Decrease" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Minus className="h-3.5 w-3.5" /></button>}
             <p className="text-xl font-semibold tabular-nums flex-1 text-center">{client.videosPosted}<span className="text-muted-foreground text-sm">/{client.videosPromised}</span></p>
-            <button onClick={() => adjustPosted(1)} aria-label="Increase" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Plus className="h-3.5 w-3.5" /></button>
+            {canEdit && <button onClick={() => adjustPosted(1)} aria-label="Increase" className="h-7 w-7 rounded-lg border flex items-center justify-center hover:bg-muted"><Plus className="h-3.5 w-3.5" /></button>}
           </div>
           <ProgressBar value={client.videosPosted} max={client.videosPromised} tone={client.health} className="mt-2" />
           <p className="text-[11px] text-muted-foreground mt-1.5">{gap > 0 ? `${gap} behind pace` : gap === 0 ? 'Exactly on pace' : `${-gap} ahead of pace`}</p>
           <p className="text-[11px] text-muted-foreground">Cycle {formatDay(pace.cycle.start)} – {formatDay(pace.cycle.end)} · {pace.daysLeft}d left</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground">Monthly fee</p>
-          <p className="text-xl font-semibold tabular-nums mt-1">{client.monthlyFee ? inr(client.monthlyFee) : '—'}</p>
-          <p className="text-[11px] text-muted-foreground mt-1">Client since {fmtDate(client.onboardedOn, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-        </Card>
+        {canFees ? (
+          <Card className="p-4">
+            <p className="text-xs text-muted-foreground">Monthly fee</p>
+            <p className="text-xl font-semibold tabular-nums mt-1">{client.monthlyFee ? inr(client.monthlyFee) : '—'}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Client since {fmtDate(client.onboardedOn, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          </Card>
+        ) : (
+          <Card className="p-4">
+            <p className="text-xs text-muted-foreground">Client since</p>
+            <p className="text-xl font-semibold mt-1">{fmtDate(client.onboardedOn, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Contact details hidden for Team</p>
+          </Card>
+        )}
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Last activity</p>
           <p className="text-xl font-semibold mt-1">{daysSince(client.lastActivityAt) === 0 ? 'Today' : `${daysSince(client.lastActivityAt)}d ago`}</p>
@@ -305,7 +326,13 @@ export default function ClientDetailPage() {
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {(['idea', 'planned', 'shot', 'editing', 'ready', 'approved', 'scheduled', 'posted'] as Stage[]).map(s => (
-                      <button key={s} onClick={() => moveContent(item.id, s)} className={`text-[11px] px-2 py-1 rounded-full border ${item.stage === s ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted'}`}>{s}</button>
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={!canEdit}
+                        onClick={() => moveContent(item.id, s)}
+                        className={`text-[11px] px-2 py-1 rounded-full border ${item.stage === s ? 'bg-foreground text-background border-foreground' : canEdit ? 'hover:bg-muted' : 'opacity-60'}`}
+                      >{s}</button>
                     ))}
                   </div>
                 </div>
@@ -317,7 +344,7 @@ export default function ClientDetailPage() {
             {tasks.length === 0 ? <EmptyState title="No tasks for this client" /> : (
               <Card>{tasks.map(t => (
                 <div key={t.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
-                  <button onClick={() => toggleTask(t.id)} className={`h-5 w-5 rounded-full border-2 shrink-0 ${t.status === 'done' ? 'bg-green border-green' : 'border-foreground/30'}`} aria-label="Toggle task" />
+                  <button disabled={!canEdit} onClick={() => toggleTask(t.id)} className={`h-5 w-5 rounded-full border-2 shrink-0 ${t.status === 'done' ? 'bg-green border-green' : 'border-foreground/30'} ${!canEdit ? 'opacity-60' : ''}`} aria-label="Toggle task" />
                   <div className={`min-w-0 flex-1 ${t.status === 'done' ? 'line-through opacity-50' : ''}`}>
                     <p className="text-sm truncate">{t.title}</p>
                     <p className="text-xs text-muted-foreground">{t.assignee}{t.due ? ` · due ${fmtDate(t.due)}` : ''}</p>

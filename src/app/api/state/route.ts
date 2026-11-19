@@ -74,6 +74,11 @@ export async function PUT(req: Request) {
   let body: unknown;
   try { body = await req.json(); } catch { return Response.json({ error: 'invalid' }, { status: 400 }); }
   if (!isDoc(body)) return Response.json({ error: 'invalid' }, { status: 400 });
+  // Team is read-only. Clients that declare the Team role cannot persist writes.
+  const deviceRole = (req.headers.get('x-orbit-role') || '').trim();
+  if (deviceRole === 'team') {
+    return Response.json({ mode: 'remote' as const, error: 'readonly', owner: false }, { status: 403 });
+  }
   try {
     const row = await readState();
     const stored = (row?.doc || emptyDoc()) as Doc;
@@ -81,7 +86,8 @@ export async function PUT(req: Request) {
     const presented = presentedPin(req);
     const hadPin = !!row?.pin_hash;
     const gate = gateFor(row, presented);
-    const pinOk = gate.ok;
+    // Manager (or unknown role) may update work fields, never money — money needs a valid Owner PIN.
+    const pinOk = gate.ok && deviceRole !== 'manager';
     const merged = mergeDoc(stored, storedMoney, hadPin, body, pinOk);
     const pinHash = merged.pinChanged && merged.nextPin ? hashPin(merged.nextPin) : (row?.pin_hash ?? null);
     const fails = merged.pinChanged ? 0 : gate.fails;

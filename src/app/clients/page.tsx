@@ -14,7 +14,7 @@ const blank = { name: '', package: '8 videos / month', videosPromised: 8, owner:
 
 export default function ClientsPage() {
   const data = useStore();
-  const { isOwner } = useRole();
+  const { isOwner, canEdit, canFees } = useRole();
   const toast = useToast();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -36,7 +36,10 @@ export default function ClientsPage() {
       if (filter === 'watch' && c.health !== 'amber') return false;
       if (filter === 'risk' && c.health !== 'red') return false;
       if (owner && c.owner !== owner) return false;
-      if (q && ![c.name, c.owner, c.city, c.industry, c.phone].some(v => (v || '').toLowerCase().includes(q))) return false;
+      const hay = canFees
+        ? [c.name, c.owner, c.city, c.industry, c.phone]
+        : [c.name, c.owner, c.city, c.industry];
+      if (q && !hay.some(v => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
     const rank: Record<Health, number> = { red: 0, amber: 1, green: 2 };
@@ -45,10 +48,11 @@ export default function ClientsPage() {
       if (sort === 'fee') return (b.monthlyFee || 0) - (a.monthlyFee || 0);
       return pendency(b).gap - pendency(a).gap || rank[a.health] - rank[b.health] || a.name.localeCompare(b.name);
     });
-  }, [active, churned, filter, query, owner, sort]);
+  }, [active, churned, filter, query, owner, sort, canFees]);
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     const c: Client = {
       id: uid(), name: form.name.trim(), status: 'Active', package: form.package, videosPromised: form.videosPromised || 8,
       videosPosted: 0, lastActivityAt: new Date().toISOString(), health: 'green', owner: form.owner.trim(),
@@ -65,10 +69,16 @@ export default function ClientsPage() {
   };
 
   const exportCSV = () => {
-    const rows = [['Name', 'Status', 'Health', 'Package', 'Owner', 'City', 'Onboarded', 'Cycle starts', 'Behind', 'Monthly Fee', 'Posted', 'Promised', ...(isOwner ? ['Received', 'Spent'] : [])]];
+    const feeCols = canFees ? (['Monthly Fee'] as const) : [];
+    const moneyCols = isOwner ? (['Received', 'Spent'] as const) : [];
+    const rows = [['Name', 'Status', 'Health', 'Package', 'Owner', 'City', 'Onboarded', 'Cycle starts', 'Behind', ...feeCols, 'Posted', 'Promised', ...moneyCols]];
     active.forEach(c => {
       const p = pendency(c);
-      const base = [c.name, c.status, c.health, c.package, c.owner, c.city, c.onboardedOn, String(cycleStartDayOf(c)), String(p.gap), String(c.monthlyFee || ''), String(c.videosPosted), String(c.videosPromised)];
+      const base = [
+        c.name, c.status, c.health, c.package, c.owner, c.city, c.onboardedOn, String(cycleStartDayOf(c)), String(p.gap),
+        ...(canFees ? [String(c.monthlyFee || '')] : []),
+        String(c.videosPosted), String(c.videosPromised),
+      ];
       rows.push(isOwner ? [...base, String(sum(c.payments)), String(sum(c.expenses))] : base);
     });
     const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -86,7 +96,7 @@ export default function ClientsPage() {
         actions={
           <>
             <Button size="sm" onClick={exportCSV}><Download className="h-3.5 w-3.5" /> CSV</Button>
-            <Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Client</Button>
+            {canEdit && <Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Client</Button>}
           </>
         }
       >
@@ -114,7 +124,7 @@ export default function ClientsPage() {
         <Select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="sm:w-44">
           <option value="attention">Needs attention</option>
           <option value="name">Name</option>
-          <option value="fee">Monthly fee</option>
+          {canFees && <option value="fee">Monthly fee</option>}
         </Select>
       </div>
 

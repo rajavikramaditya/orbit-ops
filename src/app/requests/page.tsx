@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, ArrowRight, Film, CheckCircle2 } from 'lucide-react';
 import { useStore, update, uid, touch, logActivity, clientName, fmtDate, today, type RequestItem, type Priority, type Stage } from '@/lib/store';
+import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Badge, Field, Input, Select, Textarea, Segmented, EmptyState, Sheet, PriorityBadge } from '@/components/ui';
 
@@ -13,6 +14,7 @@ const blank = { clientId: '', body: '', channel: 'whatsapp' as RequestItem['chan
 
 export default function RequestsPage() {
   const data = useStore();
+  const { canEdit } = useRole();
   const toast = useToast();
   const [filter, setFilter] = useState<Filter>('open');
   const [show, setShow] = useState(false);
@@ -32,6 +34,7 @@ export default function RequestsPage() {
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     update(d => {
       d.requests.unshift({ id: uid(), clientId: form.clientId, body: form.body.trim(), channel: form.channel, receivedAt: new Date().toISOString(), loggedBy: form.loggedBy || members[0] || '', status: 'new', priority: form.priority, due: form.due || undefined });
       logActivity(d, form.clientId, `Request logged: ${form.body.trim().slice(0, 80)}`);
@@ -43,6 +46,7 @@ export default function RequestsPage() {
   };
 
   const setStatus = (id: string, status: RequestItem['status']) => {
+    if (!canEdit) return;
     update(d => {
       const r = d.requests.find(x => x.id === id);
       if (!r) return;
@@ -54,6 +58,7 @@ export default function RequestsPage() {
   };
 
   const assign = (id: string, assignee: string) => {
+    if (!canEdit) return;
     update(d => {
       const r = d.requests.find(x => x.id === id);
       if (!r) return;
@@ -71,7 +76,7 @@ export default function RequestsPage() {
 
   const convert = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!converting) return;
+    if (!converting || !canEdit) return;
     update(d => {
       const r = d.requests.find(x => x.id === converting);
       if (!r) return;
@@ -95,7 +100,7 @@ export default function RequestsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <PageHeader title="Requests" subtitle="Every call and WhatsApp, logged before work starts"
-        actions={<Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Request</Button>}>
+        actions={canEdit ? <Button size="sm" variant="primary" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Request</Button> : undefined}>
         <Segmented<Filter> value={filter} onChange={setFilter} options={[
           { value: 'open', label: 'Open', count: counts.open },
           { value: 'new', label: 'New', count: counts.new },
@@ -104,7 +109,7 @@ export default function RequestsPage() {
         ]} />
       </PageHeader>
 
-      {list.length === 0 && <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} title={filter === 'new' ? 'Inbox zero' : 'No requests here'} hint="Log a request the moment a client asks for something, then turn it into a task or a content item." action={<Button size="sm" variant="primary" onClick={() => setShow(true)}>Log a request</Button>} />}
+      {list.length === 0 && <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} title={filter === 'new' ? 'Inbox zero' : 'No requests here'} hint="Log a request the moment a client asks for something, then turn it into a task or a content item." action={canEdit ? <Button size="sm" variant="primary" onClick={() => setShow(true)}>Log a request</Button> : undefined} />}
 
       <div className="space-y-3">
         {list.map(r => {
@@ -126,7 +131,7 @@ export default function RequestsPage() {
                 </div>
               </div>
 
-              {r.status !== 'done' && (
+              {r.status !== 'done' && canEdit && (
                 <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
                   <Select value={r.assignee || ''} onChange={e => assign(r.id, e.target.value)} className="!w-auto min-w-40 text-xs h-8">
                     <option value="">Assign…</option>
@@ -135,6 +140,9 @@ export default function RequestsPage() {
                   <Button size="sm" onClick={() => openConvert(r)}><ArrowRight className="h-3.5 w-3.5" /> Turn into work</Button>
                   <Button size="sm" variant="ghost" onClick={() => setStatus(r.id, 'done')} className="ml-auto"><CheckCircle2 className="h-3.5 w-3.5" /> Done</Button>
                 </div>
+              )}
+              {r.status !== 'done' && !canEdit && r.assignee && (
+                <p className="text-xs text-muted-foreground pt-1 border-t">Assigned to {r.assignee}</p>
               )}
 
               {(r.linkedTaskId || r.linkedContentId) && (

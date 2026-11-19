@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 import { useStore, update, uid, touch, logActivity, clientName, fmtDate, today, isOverdue, type Task, type Priority } from '@/lib/store';
+import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, Select, Segmented, EmptyState, Sheet, PriorityBadge } from '@/components/ui';
 
@@ -12,6 +13,7 @@ const blank = { title: '', clientId: '', assignee: '', priority: 'P2' as Priorit
 
 export default function TasksPage() {
   const data = useStore();
+  const { canEdit } = useRole();
   const toast = useToast();
   const [filter, setFilter] = useState<Filter>('open');
   const [assignee, setAssignee] = useState('');
@@ -55,11 +57,12 @@ export default function TasksPage() {
     done: data.tasks.filter(t => t.status === 'done').length,
   };
 
-  const openNew = () => { setForm({ ...blank, assignee: assignee || '' }); setEditing('new'); };
-  const openEdit = (t: Task) => { setForm({ title: t.title, clientId: t.clientId || '', assignee: t.assignee, priority: t.priority, due: t.due }); setEditing(t.id); };
+  const openNew = () => { if (!canEdit) return; setForm({ ...blank, assignee: assignee || '' }); setEditing('new'); };
+  const openEdit = (t: Task) => { if (!canEdit) return; setForm({ title: t.title, clientId: t.clientId || '', assignee: t.assignee, priority: t.priority, due: t.due }); setEditing(t.id); };
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     update(d => {
       if (editing === 'new') {
         d.tasks.unshift({ id: uid(), title: form.title.trim(), clientId: form.clientId || undefined, assignee: form.assignee, priority: form.priority, due: form.due, status: 'todo', createdAt: new Date().toISOString() });
@@ -74,6 +77,7 @@ export default function TasksPage() {
   };
 
   const toggle = (id: string) => {
+    if (!canEdit) return;
     let done = false;
     update(d => {
       const t = d.tasks.find(x => x.id === id);
@@ -87,6 +91,7 @@ export default function TasksPage() {
   };
 
   const remove = (id: string) => {
+    if (!canEdit) return;
     if (!confirm('Delete this task?')) return;
     update(d => { d.tasks = d.tasks.filter(t => t.id !== id); });
     toast('Task deleted');
@@ -95,7 +100,7 @@ export default function TasksPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <PageHeader title="Tasks" subtitle="Everything that is not a video"
-        actions={<Button size="sm" variant="primary" onClick={openNew}><Plus className="h-3.5 w-3.5" /> Task</Button>}>
+        actions={canEdit ? <Button size="sm" variant="primary" onClick={openNew}><Plus className="h-3.5 w-3.5" /> Task</Button> : undefined}>
         <Segmented<Filter> value={filter} onChange={setFilter} options={[
           { value: 'open', label: 'Open', count: counts.open },
           { value: 'today', label: 'Today', count: counts.today },
@@ -109,7 +114,7 @@ export default function TasksPage() {
         {members.map(n => <option key={n}>{n}</option>)}
       </Select>
 
-      {groups.length === 0 && <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} title={filter === 'done' ? 'Nothing completed yet' : 'No tasks here'} hint="Tasks are the non-video work: ad setup, calls, reports, follow-ups." action={<Button size="sm" variant="primary" onClick={openNew}>Add a task</Button>} />}
+      {groups.length === 0 && <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} title={filter === 'done' ? 'Nothing completed yet' : 'No tasks here'} hint="Tasks are the non-video work: ad setup, calls, reports, follow-ups." action={canEdit ? <Button size="sm" variant="primary" onClick={openNew}>Add a task</Button> : undefined} />}
 
       {groups.map(g => (
         <section key={g.label}>
@@ -117,7 +122,7 @@ export default function TasksPage() {
           <Card>
             {g.items.map(t => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
-                <button onClick={() => toggle(t.id)} aria-label="Toggle" className={`h-6 w-6 rounded-full border-2 shrink-0 flex items-center justify-center ${t.status === 'done' ? 'bg-green border-green text-white' : 'border-foreground/30 hover:border-green'}`}>
+                <button disabled={!canEdit} onClick={() => toggle(t.id)} aria-label="Toggle" className={`h-6 w-6 rounded-full border-2 shrink-0 flex items-center justify-center ${t.status === 'done' ? 'bg-green border-green text-white' : 'border-foreground/30'} ${canEdit ? 'hover:border-green' : 'opacity-60'}`}>
                   {t.status === 'done' && <CheckCircle2 className="h-4 w-4" />}
                 </button>
                 <div className={`min-w-0 flex-1 ${t.status === 'done' ? 'line-through opacity-50' : ''}`}>
@@ -129,8 +134,12 @@ export default function TasksPage() {
                 </div>
                 <PriorityBadge priority={t.priority} />
                 {isOverdue(t.due, t.status) && <span className="text-[11px] text-red shrink-0">Overdue</span>}
-                <button onClick={() => openEdit(t)} aria-label="Edit" className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                <button onClick={() => remove(t.id)} aria-label="Delete" className="h-8 w-8 rounded-lg hover:bg-red-soft flex items-center justify-center text-muted-foreground hover:text-red"><Trash2 className="h-3.5 w-3.5" /></button>
+                {canEdit && (
+                  <>
+                    <button onClick={() => openEdit(t)} aria-label="Edit" className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => remove(t.id)} aria-label="Delete" className="h-8 w-8 rounded-lg hover:bg-red-soft flex items-center justify-center text-muted-foreground hover:text-red"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </>
+                )}
               </div>
             ))}
           </Card>

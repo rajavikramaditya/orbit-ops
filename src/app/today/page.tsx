@@ -11,7 +11,7 @@ import { PageHeader, Card, Button, Stat, SectionTitle, HealthBadge, PriorityBadg
 
 export default function TodayPage() {
   const data = useStore();
-  const { isOwner } = useRole();
+  const { isOwner, canEdit } = useRole();
   const toast = useToast();
   const router = useRouter();
   const [quick, setQuick] = useState<'task' | 'request' | null>(null);
@@ -51,6 +51,7 @@ export default function TodayPage() {
   };
 
   const complete = (id: string) => {
+    if (!canEdit) return;
     update(d => {
       const t = d.tasks.find(x => x.id === id);
       if (!t) return;
@@ -72,8 +73,12 @@ export default function TodayPage() {
         actions={
           <>
             <Button size="sm" onClick={summary}><Copy className="h-3.5 w-3.5" /> Summary</Button>
-            <Button size="sm" onClick={() => setQuick('request')}><Plus className="h-3.5 w-3.5" /> Request</Button>
-            <Button size="sm" variant="primary" onClick={() => setQuick('task')}><Plus className="h-3.5 w-3.5" /> Task</Button>
+            {canEdit && (
+              <>
+                <Button size="sm" onClick={() => setQuick('request')}><Plus className="h-3.5 w-3.5" /> Request</Button>
+                <Button size="sm" variant="primary" onClick={() => setQuick('task')}><Plus className="h-3.5 w-3.5" /> Task</Button>
+              </>
+            )}
           </>
         }
       >
@@ -100,7 +105,7 @@ export default function TodayPage() {
         <section>
           <SectionTitle><span className="inline-flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 text-red" /> Overdue</span></SectionTitle>
           <Card>
-            {overdue.map(t => <TaskRow key={t.id} task={t} client={clientName(data, t.clientId)} onDone={() => complete(t.id)} />)}
+            {overdue.map(t => <TaskRow key={t.id} task={t} client={clientName(data, t.clientId)} canEdit={canEdit} onDone={() => complete(t.id)} />)}
           </Card>
         </section>
       )}
@@ -109,7 +114,7 @@ export default function TodayPage() {
         <SectionTitle><span className="inline-flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5" /> Due today</span></SectionTitle>
         {dueToday.length === 0
           ? <EmptyState title="Nothing due today" hint="Tasks with today's date show up here." />
-          : <Card>{dueToday.map(t => <TaskRow key={t.id} task={t} client={clientName(data, t.clientId)} onDone={() => complete(t.id)} />)}</Card>}
+          : <Card>{dueToday.map(t => <TaskRow key={t.id} task={t} client={clientName(data, t.clientId)} canEdit={canEdit} onDone={() => complete(t.id)} />)}</Card>}
       </section>
 
       {newRequests.length > 0 && (
@@ -225,10 +230,10 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-function TaskRow({ task, client, onDone }: { task: Task; client?: string; onDone: () => void }) {
+function TaskRow({ task, client, canEdit, onDone }: { task: Task; client?: string; canEdit: boolean; onDone: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0">
-      <button onClick={onDone} aria-label="Mark done" className="h-6 w-6 rounded-full border-2 border-foreground/30 hover:border-green hover:bg-green-soft shrink-0 flex items-center justify-center group">
+      <button disabled={!canEdit} onClick={onDone} aria-label="Mark done" className={`h-6 w-6 rounded-full border-2 border-foreground/30 shrink-0 flex items-center justify-center group ${canEdit ? 'hover:border-green hover:bg-green-soft' : 'opacity-60'}`}>
         <CheckCircle2 className="h-4 w-4 text-green opacity-0 group-hover:opacity-100" />
       </button>
       <div className="min-w-0 flex-1">

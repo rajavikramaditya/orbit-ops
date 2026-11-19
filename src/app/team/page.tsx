@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useStore, update, uid, today, type Member, type MemberRole } from '@/lib/store';
+import { useRole } from '@/lib/role';
 import { useToast } from '@/components/toast';
 import { PageHeader, Card, Button, Field, Input, Select, Avatar, Badge, EmptyState, Sheet } from '@/components/ui';
 
@@ -12,6 +13,7 @@ const blank = { name: '', role: 'Editor' as MemberRole, focus: '', phone: '' };
 
 export default function TeamPage() {
   const data = useStore();
+  const { canEdit, canPii } = useRole();
   const toast = useToast();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [form, setForm] = useState(blank);
@@ -25,11 +27,12 @@ export default function TeamPage() {
     requests: data.requests.filter(r => r.assignee === name && r.status !== 'done').length,
   });
 
-  const openNew = () => { setForm(blank); setEditing('new'); };
-  const openEdit = (m: Member) => { setForm({ name: m.name, role: m.role, focus: m.focus, phone: m.phone || '' }); setEditing(m.id); };
+  const openNew = () => { if (!canEdit) return; setForm(blank); setEditing('new'); };
+  const openEdit = (m: Member) => { if (!canEdit) return; setForm({ name: m.name, role: m.role, focus: m.focus, phone: m.phone || '' }); setEditing(m.id); };
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     const name = form.name.trim();
     if (data.team.some(m => m.name.toLowerCase() === name.toLowerCase() && m.id !== editing)) {
       alert(`${name} is already on the team. Names must be unique because work is assigned by name.`);
@@ -59,6 +62,7 @@ export default function TeamPage() {
   };
 
   const remove = (m: Member) => {
+    if (!canEdit) return;
     const w = workload(m.name);
     const attached = w.clients + w.tasks + w.content + w.requests;
     if (!confirm(attached ? `${m.name} still owns ${w.clients} clients and ${w.tasks} open tasks. Remove them from the team anyway? Their existing assignments stay as-is.` : `Remove ${m.name} from the team?`)) return;
@@ -69,9 +73,9 @@ export default function TeamPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <PageHeader title="Team" subtitle={`${data.team.length} people`}
-        actions={<Button size="sm" variant="primary" onClick={openNew}><Plus className="h-3.5 w-3.5" /> Member</Button>} />
+        actions={canEdit ? <Button size="sm" variant="primary" onClick={openNew}><Plus className="h-3.5 w-3.5" /> Member</Button> : undefined} />
 
-      {data.team.length === 0 && <EmptyState title="No team members" hint="Add the people who own clients, shoot and edit, so work can be assigned to them." action={<Button size="sm" variant="primary" onClick={openNew}>Add member</Button>} />}
+      {data.team.length === 0 && <EmptyState title="No team members" hint="Add the people who own clients, shoot and edit, so work can be assigned to them." action={canEdit ? <Button size="sm" variant="primary" onClick={openNew}>Add member</Button> : undefined} />}
 
       <div className="grid sm:grid-cols-2 gap-3">
         {data.team.map(m => {
@@ -86,10 +90,14 @@ export default function TeamPage() {
                     <Badge>{m.role}</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">{m.focus || 'No focus set'}</p>
-                  {m.phone && <a href={`tel:${m.phone}`} className="text-xs text-muted-foreground hover:text-foreground">{m.phone}</a>}
+                  {canPii && m.phone && <a href={`tel:${m.phone}`} className="text-xs text-muted-foreground hover:text-foreground">{m.phone}</a>}
                 </div>
-                <button onClick={() => openEdit(m)} aria-label="Edit" className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                <button onClick={() => remove(m)} aria-label="Remove" className="h-8 w-8 rounded-lg hover:bg-red-soft flex items-center justify-center text-muted-foreground hover:text-red"><Trash2 className="h-3.5 w-3.5" /></button>
+                {canEdit && (
+                  <>
+                    <button onClick={() => openEdit(m)} aria-label="Edit" className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => remove(m)} aria-label="Remove" className="h-8 w-8 rounded-lg hover:bg-red-soft flex items-center justify-center text-muted-foreground hover:text-red"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </>
+                )}
               </div>
               <div className="mt-3 grid grid-cols-4 gap-1 text-center">
                 <Metric label="Clients" value={w.clients} href="/clients" />

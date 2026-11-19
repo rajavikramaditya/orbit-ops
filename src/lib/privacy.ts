@@ -14,7 +14,14 @@ export type Doc = {
   requests: unknown[];
   content: unknown[];
   team: unknown[];
-  settings: { ownerPin?: string; ownerPinSet?: boolean; companyName?: string; currency?: string } & Record<string, unknown>;
+  settings: {
+    ownerPin?: string;
+    ownerPinSet?: boolean;
+    teamPinHash?: string;
+    teamPinSet?: boolean;
+    companyName?: string;
+    currency?: string;
+  } & Record<string, unknown>;
 };
 
 export function emptyDoc(): Doc {
@@ -61,6 +68,13 @@ export function publicDoc(doc: Doc, pinSet: boolean): Doc {
   const settings = { ...doc.settings };
   delete settings.ownerPin;
   settings.ownerPinSet = pinSet;
+  // teamPinHash is a SHA-256 digest — safe to sync so every device can unlock Team.
+  if (typeof settings.teamPinHash === 'string' && settings.teamPinHash.length === 64) {
+    settings.teamPinSet = true;
+  } else {
+    delete settings.teamPinHash;
+    delete settings.teamPinSet;
+  }
   return { ...doc, clients: doc.clients.map(withoutMoney), settings };
 }
 
@@ -96,8 +110,19 @@ export function mergeDoc(stored: Doc, storedMoney: MoneyMap, hadPin: boolean, in
 
   const doc = publicDoc(incoming, hadPin || settingFirstPin || pinOk);
   if (!canWritePrivate) {
+    // Manager/Team work saves must not change Owner/Team PIN material.
+    const settings = {
+      ...doc.settings,
+      ownerPinSet: hadPin,
+      teamPinHash: stored.settings?.teamPinHash,
+      teamPinSet: stored.settings?.teamPinSet,
+    };
+    if (!settings.teamPinHash) {
+      delete settings.teamPinHash;
+      delete settings.teamPinSet;
+    }
     return {
-      doc: publicDoc({ ...doc, settings: { ...doc.settings, ownerPinSet: hadPin } }, hadPin),
+      doc: publicDoc({ ...doc, settings }, hadPin),
       money: storedMoney,
       nextPin: null,
       pinChanged: false,

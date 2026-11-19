@@ -74,11 +74,23 @@ function accessKey() {
   return localStorage.getItem(KEY_ACCESS) || '';
 }
 
+function deviceRole(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    if (sessionStorage.getItem('orbit-ops-role-unlocked') !== '1') return '';
+    return localStorage.getItem('orbit-ops-role') || '';
+  } catch {
+    return '';
+  }
+}
+
 function headers(pin = state.ownerPin) {
   const h: Record<string, string> = { 'content-type': 'application/json' };
   const key = accessKey();
   if (key) h['x-orbit-key'] = key;
   if (pin) h['x-owner-pin'] = pin;
+  const role = deviceRole();
+  if (role === 'owner' || role === 'manager' || role === 'team') h['x-orbit-role'] = role;
   return h;
 }
 

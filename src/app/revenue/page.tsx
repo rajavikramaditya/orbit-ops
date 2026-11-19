@@ -77,7 +77,7 @@ export default function RevenuePage() {
   if (!isOwner) {
     return (
       <div className="max-w-md mx-auto mt-16">
-        <EmptyState icon={<Lock className="h-5 w-5" />} title="Owner only" hint="Revenue, payments and expenses are visible to the Owner role. Switch role from the sidebar and enter the PIN if one is set." />
+        <EmptyState icon={<Lock className="h-5 w-5" />} title="Owner only" hint="Revenue, payments and expenses stay with the Owner role. Use Switch Role and enter the Owner PIN." />
       </div>
     );
   }
