@@ -60,22 +60,6 @@ export function cloudProblem() { return cloud.problem; }
 /** True while the remote database is empty and waiting for the first save. */
 export function remoteAwaitingFirstSave() { return cloud.holdPush; }
 
-/** Clear local Owner PIN markers without wiping clients/tasks (empty-DB path). */
-function markLocalOwnerPinUnset() {
-  if (!state.cache) return;
-  state.applyingRemote = true;
-  try {
-    const next = structuredClone(state.cache);
-    delete next.settings.ownerPin;
-    next.settings.ownerPinSet = false;
-    state.cache = next;
-    try { localStorage.setItem('orbit-ops-data-v2', JSON.stringify(next)); } catch { /* private mode */ }
-    for (const l of state.listeners) l();
-  } finally {
-    state.applyingRemote = false;
-  }
-}
-
 const SERVER_SNAP: CloudSnap = { mode: 'unknown', migrate: false };
 
 export function useCloud() {
@@ -190,9 +174,10 @@ export async function connectCloud() {
   if (res.empty) {
     cloud.holdPush = true;
     cloud.migrateOffer = state.preexisting;
-    // Empty remote has no Owner PIN yet. Keep local work for migrate, but clear
-    // any stale "PIN is set" flag so Owner bootstrap can run once.
-    markLocalOwnerPinUnset();
+    // Keep local work AND any existing Owner PIN. Clearing the PIN here would
+    // let anyone with the team key bootstrap a new PIN over cached payments.
+    // First-PIN bootstrap is only offered when local has no Owner PIN either
+    // (see ownerNeedsFirstPin). Migrate uploads the local PIN to protect money.
   } else if (res.data) {
     cloud.holdPush = false;
     cloud.migrateOffer = !!localStorage.getItem(PENDING_MONEY);

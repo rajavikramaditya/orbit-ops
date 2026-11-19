@@ -77,14 +77,15 @@ export type UnlockResult = 'ok' | 'wrong-pin' | 'locked' | 'pin-required' | 'set
 /**
  * True only when Owner may create the first PIN from the unlock gate.
  * Never true for Manager/Team — callers must also gate on role === 'owner'.
- * Remote with an existing PIN (or unknown/stale flag) never offers reset.
+ * An existing local Owner PIN is never cleared or reset just because remote is empty.
  */
 export function ownerNeedsFirstPin(): boolean {
   const s = loadData().settings;
+  // Local plaintext PIN or a known-set flag always wins — never offer bootstrap reset.
   if (s.ownerPin || s.ownerPinSet === true) return false;
   if (state.remote) {
     if (s.ownerPinSet === false) return true;
-    // Empty remote DB awaiting first save: first Owner may bootstrap the PIN.
+    // Empty remote with no local PIN yet: first Owner may bootstrap once.
     if (remoteAwaitingFirstSave()) return true;
     return false;
   }
