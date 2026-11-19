@@ -57,6 +57,8 @@ export function cloudMode() { return cloud.mode; }
 export function cloudMigrateOffer() { return cloud.migrateOffer; }
 export function cloudSnapshot() { return cloud.snap; }
 export function cloudProblem() { return cloud.problem; }
+/** True while the remote database is empty and waiting for the first save. */
+export function remoteAwaitingFirstSave() { return cloud.holdPush; }
 
 const SERVER_SNAP: CloudSnap = { mode: 'unknown', migrate: false };
 
@@ -172,6 +174,10 @@ export async function connectCloud() {
   if (res.empty) {
     cloud.holdPush = true;
     cloud.migrateOffer = state.preexisting;
+    // Keep local work AND any existing Owner PIN. Clearing the PIN here would
+    // let anyone with the team key bootstrap a new PIN over cached payments.
+    // First-PIN bootstrap is only offered when local has no Owner PIN either
+    // (see ownerNeedsFirstPin). Migrate uploads the local PIN to protect money.
   } else if (res.data) {
     cloud.holdPush = false;
     cloud.migrateOffer = !!localStorage.getItem(PENDING_MONEY);
@@ -193,11 +199,22 @@ export async function saveAccessKey(key: string) {
   return cloud.mode === 'remote' ? 'ok' as const : 'refused' as const;
 }
 
+/**
+ * Drop the team access key and show the primary Sign-in gate (CloudGate).
+ * Used by Switch Role / Switch Account so users land on the real access-key
+ * login — not the role PIN middle screen and not a blank page.
+ */
 export function forgetAccessKey() {
   localStorage.removeItem(KEY_ACCESS);
   state.remote = false;
   state.ownerPin = '';
+  cloud.holdPush = false;
+  cloud.migrateOffer = false;
+  cloud.latest = null;
+  // Force the branded access-key Sign-in immediately. Do not await connectCloud
+  // first — that can flash RoleGate / a blank middle state.
   cloud.mode = 'locked';
+  cloud.problem = '';
   emit();
 }
 
@@ -214,7 +231,9 @@ export async function unlockOwner(pin: string): Promise<'ok' | 'locked' | 'no'> 
 
 export function lockOwner() {
   state.ownerPin = '';
-  if (state.remote) void connectCloud();
+  // Only refresh when a team key is still present. Switch Account clears the key
+  // first; reconnecting here would race and pull the session back to remote.
+  if (state.remote && accessKey()) void connectCloud();
 }
 
 /** Upload whatever this browser currently holds. */

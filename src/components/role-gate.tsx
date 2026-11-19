@@ -2,8 +2,9 @@
 
 import { useState, type ReactNode } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
-import { useRole, ROLE_LABEL, ROLE_BLURB, unlockRole } from '@/lib/role';
-import { loadData, type Role } from '@/lib/store';
+import { useRole, ROLE_LABEL, ROLE_BLURB, unlockRole, ownerNeedsFirstPin, switchAccount } from '@/lib/role';
+import { type Role } from '@/lib/store';
+import { useCloud } from '@/lib/sync';
 import { Button, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { OrbitMark } from '@/components/orbit-mark';
@@ -21,6 +22,7 @@ export function RoleGate({ children }: { children: ReactNode }) {
 
 function RoleUnlockScreen() {
   const toast = useToast();
+  const cloud = useCloud();
   const [picked, setPicked] = useState<Role | null>(null);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
@@ -33,28 +35,33 @@ function RoleUnlockScreen() {
     setPin('');
     setPin2('');
     setErr('');
-    if (r === 'owner') {
-      const s = loadData().settings;
-      setNeedSet(!(s.ownerPin || s.ownerPinSet));
-    } else {
-      setNeedSet(false);
-    }
+    // Set-new-PIN is Owner-only first bootstrap — never for Manager/Team,
+    // and never when an Owner PIN already exists (or may exist remotely).
+    setNeedSet(r === 'owner' && ownerNeedsFirstPin());
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!picked || busy) return;
+    // Hard stop: Team/Manager unlock never enters set-PIN UI.
+    const allowSet = picked === 'owner' && needSet && ownerNeedsFirstPin();
     setBusy(true);
     setErr('');
     try {
-      const res = await unlockRole(picked, pin, needSet ? pin2 : undefined);
+      const res = await unlockRole(picked, pin, allowSet ? pin2 : undefined);
       if (res === 'ok') {
         toast(`${ROLE_LABEL[picked]} unlocked`);
         return;
       }
       if (res === 'set-pin-required') {
-        setNeedSet(true);
-        setErr('Choose an Owner PIN (at least 4 digits), then confirm it.');
+        // Only escalate to set-PIN for genuine Owner first-time bootstrap.
+        if (picked === 'owner' && ownerNeedsFirstPin()) {
+          setNeedSet(true);
+          setErr('Choose an Owner PIN (at least 4 digits), then confirm it.');
+        } else {
+          setNeedSet(false);
+          setErr('Wrong PIN');
+        }
         return;
       }
       if (res === 'locked') {
@@ -62,13 +69,18 @@ function RoleUnlockScreen() {
         return;
       }
       if (res === 'pin-required') {
-        setErr(needSet ? 'PIN must be at least 4 digits.' : 'Enter the PIN for this role.');
+        setErr(allowSet ? 'PIN must be at least 4 digits.' : 'Enter the PIN for this role.');
         return;
       }
-      setErr(needSet && pin !== pin2 ? 'The two PINs do not match.' : 'Wrong PIN');
+      setErr(allowSet && pin !== pin2 ? 'The two PINs do not match.' : 'Wrong PIN');
     } finally {
       setBusy(false);
     }
+  };
+
+  const leaveAccount = () => {
+    switchAccount();
+    toast('Enter the team access key');
   };
 
   return (
@@ -112,10 +124,10 @@ function RoleUnlockScreen() {
               </span>
               <div>
                 <p className="text-sm font-medium leading-tight">
-                  {needSet ? 'Set Owner PIN' : `${ROLE_LABEL[picked]} PIN`}
+                  {needSet && picked === 'owner' ? 'Set Owner PIN' : `${ROLE_LABEL[picked]} PIN`}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {needSet
+                  {needSet && picked === 'owner'
                     ? 'No Owner PIN yet. Create one to unlock Owner on this device.'
                     : `Enter the PIN to use the ${ROLE_LABEL[picked]} view.`}
                 </p>
@@ -126,12 +138,12 @@ function RoleUnlockScreen() {
               inputMode="numeric"
               autoComplete="off"
               autoFocus
-              placeholder={needSet ? 'New PIN (4+ digits)' : 'PIN'}
+              placeholder={needSet && picked === 'owner' ? 'New PIN (4+ digits)' : 'PIN'}
               value={pin}
               onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setErr(''); }}
               className="h-11 text-center tracking-[0.35em]"
             />
-            {needSet && (
+            {needSet && picked === 'owner' && (
               <Input
                 type="password"
                 inputMode="numeric"
@@ -147,6 +159,19 @@ function RoleUnlockScreen() {
               {busy ? 'Checking…' : `Unlock ${ROLE_LABEL[picked]}`}
             </Button>
           </form>
+        )}
+
+        {cloud.mode === 'remote' && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={leaveAccount}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Switch Account
+            </button>
+            <p className="mt-1 text-[11px] text-muted-foreground">Leaves this team session and returns to the access-key sign-in.</p>
+          </div>
         )}
       </div>
     </div>

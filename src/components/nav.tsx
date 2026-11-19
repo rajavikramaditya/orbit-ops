@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, RefreshCw } from 'lucide-react';
+import { Home, Users, Inbox, Film, CheckSquare, BookOpen, IndianRupee, UserCircle, Settings, MoreHorizontal, Lock, KeyRound, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRole, ROLE_LABEL } from '@/lib/role';
 import { useStore } from '@/lib/store';
+import { useCloud } from '@/lib/sync';
 import { Sheet } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { OrbitMark } from '@/components/orbit-mark';
@@ -52,7 +53,8 @@ function useBadges() {
 
 export function Nav() {
   const pathname = usePathname();
-  const { role, isOwner, unlocked, lockRole } = useRole();
+  const { role, isOwner, unlocked, leaveToLogin, switchAccount } = useRole();
+  const cloud = useCloud();
   const toast = useToast();
   const [more, setMore] = useState(false);
   const badges = useBadges();
@@ -62,10 +64,17 @@ export function Nav() {
   const primary = mobilePrimary.map(h => allItems.find(i => i.href === h)!);
   const secondary = allItems.filter(i => !mobilePrimary.includes(i.href) && visible(i));
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const canSwitchAccount = cloud.mode === 'remote';
 
-  const switchRole = () => {
-    lockRole();
-    toast('Enter a PIN to switch role');
+  /** Switch Role returns to the original access-key Sign-in (not RoleGate). */
+  const onSwitchRole = () => {
+    leaveToLogin();
+    toast(canSwitchAccount ? 'Enter the team access key' : 'Enter a PIN to continue');
+  };
+
+  const onSwitchAccount = () => {
+    switchAccount();
+    toast('Enter the team access key');
   };
 
   return (
@@ -79,7 +88,7 @@ export function Nav() {
         {unlocked && (
           <button
             type="button"
-            onClick={switchRole}
+            onClick={onSwitchRole}
             className="inline-flex items-center gap-1.5 rounded-xl border bg-card px-2.5 py-1.5 text-xs hover:bg-muted"
           >
             <span className={cn('h-2 w-2 rounded-full', role === 'owner' ? 'bg-green' : role === 'manager' ? 'bg-amber' : 'bg-muted-foreground')} />
@@ -128,12 +137,22 @@ export function Nav() {
           </div>
           <button
             type="button"
-            onClick={switchRole}
+            onClick={onSwitchRole}
             className="w-full flex items-center justify-center gap-2 rounded-xl border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             <Lock className="h-3.5 w-3.5" />
             Switch Role
           </button>
+          {canSwitchAccount && (
+            <button
+              type="button"
+              onClick={onSwitchAccount}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Switch Account
+            </button>
+          )}
         </div>
       </aside>
 
@@ -163,13 +182,26 @@ export function Nav() {
         </div>
         <button
           type="button"
-          onClick={() => { setMore(false); switchRole(); }}
+          onClick={() => { setMore(false); onSwitchRole(); }}
           className="mt-2 w-full flex items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium hover:bg-muted"
         >
           <Lock className="h-4 w-4" />
           Switch Role
         </button>
-        <p className="mt-3 text-[11px] text-muted-foreground">Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>. Switching roles locks this device until you enter the next PIN.</p>
+        {canSwitchAccount && (
+          <button
+            type="button"
+            onClick={() => { setMore(false); onSwitchAccount(); }}
+            className="mt-2 w-full flex items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <KeyRound className="h-4 w-4" />
+            Switch Account
+          </button>
+        )}
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Signed in as <span className="font-medium text-foreground">{ROLE_LABEL[role]}</span>.
+          {' '}Switch Role returns to the team access-key sign-in, then a role PIN unlock.
+        </p>
       </Sheet>
     </>
   );
