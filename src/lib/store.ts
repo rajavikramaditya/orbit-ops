@@ -1,6 +1,9 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import type { AttendanceEntry } from './attendance';
+
+export type { AttendanceEntry, AttendanceStatus } from './attendance';
 
 export type Health = 'green' | 'amber' | 'red';
 export type Role = 'owner' | 'manager' | 'team';
@@ -115,6 +118,13 @@ export interface Member {
   role: MemberRole;
   focus: string;
   phone?: string;
+  /**
+   * SHA-256 hex of `orbit-ops:member:{id}:{password}`.
+   * When missing, login falls back to the legacy role password
+   * (Manager 8423095693, Team 246810 / settings.teamPinHash).
+   * Owner always uses the Owner money PIN, not this field.
+   */
+  passwordHash?: string;
 }
 
 export interface Settings {
@@ -136,6 +146,7 @@ export interface AppData {
   requests: RequestItem[];
   content: ContentItem[];
   team: Member[];
+  attendance: AttendanceEntry[];
   settings: Settings;
 }
 
@@ -176,11 +187,12 @@ const seed = (): AppData => ({
   requests: [],
   content: [],
   team: seedTeam(),
+  attendance: [],
   settings: { companyName: 'Orbit Ops', currency: 'INR' },
 });
 
 // Server render and first client paint share this so hydration matches.
-const EMPTY: AppData = { version: 3, clients: [], tasks: [], requests: [], content: [], team: [], settings: { companyName: 'Orbit Ops', currency: 'INR' } };
+const EMPTY: AppData = { version: 3, clients: [], tasks: [], requests: [], content: [], team: [], attendance: [], settings: { companyName: 'Orbit Ops', currency: 'INR' } };
 
 // ---------- Health & cycle ----------
 
@@ -332,6 +344,7 @@ function migrate(raw: unknown): AppData {
     requests: list<RequestItem>(d.requests, []).map(r => ({ ...r })),
     content: list<ContentItem>(d.content, []).map(c => ({ ...c })),
     team: list<Member>(d.team, s.team).map(m => ({ ...m })),
+    attendance: list<AttendanceEntry>(d.attendance, []).map(a => ({ ...a })),
     settings: { ...s.settings, ...(d.settings || {}) },
   };
   if (!data.settings.companyName || data.settings.companyName === 'Orbit Media by Orbitcore') {
@@ -418,7 +431,7 @@ state.applyRemote = (data: AppData) => {
   try { saveData(migrate(data)); } finally { state.applyingRemote = false; }
 };
 
-export type MutationKind = 'work' | 'money' | 'owner-settings' | 'bootstrap';
+export type MutationKind = 'work' | 'money' | 'owner-settings' | 'bootstrap' | 'attendance-self';
 
 function roleAllowsMutation(kind: MutationKind): boolean {
   if (kind === 'bootstrap') return true;
@@ -432,18 +445,21 @@ function roleAllowsMutation(kind: MutationKind): boolean {
   } catch { return false; }
   if (!unlocked) return false;
   if (kind === 'money' || kind === 'owner-settings') return role === 'owner';
+  // Team's only write path: self check-in / check-out for today.
+  if (kind === 'attendance-self') return role === 'owner' || role === 'manager' || role === 'team';
   return role === 'owner' || role === 'manager';
 }
 
 /**
  * Mutate a fresh copy of the data and persist it.
- * Team is read-only. Money / Owner settings require Owner. Work edits need Owner or Manager.
- * Pass `bootstrap` only for first-time Owner PIN setup during unlock.
+ * Team is read-only except `attendance-self`. Money / Owner settings require Owner.
+ * Work edits need Owner or Manager. Pass `bootstrap` only for first-time Owner PIN setup.
  */
 export function update(fn: (d: AppData) => void, kind: MutationKind = 'work') {
   if (!roleAllowsMutation(kind)) return loadData();
   const data: AppData = JSON.parse(JSON.stringify(loadData()));
   fn(data);
+  if (!Array.isArray(data.attendance)) data.attendance = [];
   saveData(data);
   return data;
 }

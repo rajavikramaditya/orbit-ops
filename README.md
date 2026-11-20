@@ -44,6 +44,7 @@ The system is intentionally simple. It does not try to be a full project-managem
 | Content   | Video pipeline (idea → posted)               |
 | Tasks     | Non-video work                               |
 | Team      | People and roles                             |
+| Attendance| Check-in / history (role-aware)              |
 | Readme    | This document                                |
 
 ---
@@ -60,15 +61,17 @@ Churned clients move to Bin and leave the active list.
 
 ---
 
-## Roles (current model)
+## Sign-in (current model)
 
-Every role requires a PIN unlock before that view is usable. **Switch Role** and **Switch Account** return to the team access-key sign-in (the primary login). After the access key, pick a role and enter its PIN. Setting a new Owner PIN is only offered on first-time Owner bootstrap (or later in Owner Settings) — never as a reset on every role switch.
+One login page (CloudGate). Choose **Owner / Manager / Team**, enter your **first name** (as on the Team roster) and **password**, then sign in. When Neon is configured, the same form also asks for the team access key — there is no second “role gate” page.
 
-- **Owner** — Full access including payments, expenses and revenue. Owner PIN is set in Settings (or on first Owner unlock).
-- **Manager** — Can edit clients, requests, content, tasks and team roster. Cannot open Revenue or change payments/expenses. Manager PIN is fixed (hashed in the app; plaintext is not shipped in source).
-- **Team** — Read-only operational progress (client names, delivery pace, pipeline). No contact/PII (phone, contact name, Instagram) and no edits. Default Team PIN is `246810` until Owner changes it in Settings (stored as a hash).
+**Log out** returns to that page (keeps the access key). **Switch Account** also clears the access key.
 
-The team shares one access key for the database. Payments stay behind the Owner PIN. There is no separate login for each person.
+- **Owner** — Full access including payments, expenses, revenue and attendance admin. Password is the Owner money PIN (Settings / first bootstrap). First name must match an Owner on the roster (e.g. Vikram).
+- **Manager** — Ops edits + attendance control (view everyone, correct entries). No revenue. First name must match a Manager on the roster. Password: personal hash on the member when set; otherwise legacy Manager password `8423095693`.
+- **Team** — Read-only ops (no PII). Attendance: self check-in/out for today only. First name must match an Editor/Shooter/Designer. Password: personal hash when set; otherwise Team default `246810` (or Settings Team default hash).
+
+Payments stay behind the Owner password on the server. Prefer setting a personal login password per person on the Team page.
 
 ---
 

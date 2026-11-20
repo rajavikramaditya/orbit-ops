@@ -3,17 +3,20 @@
 import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
 import { state } from './store-cache';
-import { cloudMode, forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
-import { managerPinMatches, teamPinMatches } from './role-pins';
-import { canEditMoney, canEditWork, canViewFees, canViewPii, canViewRevenue } from './permissions';
+import { forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
+import { lookupMemberForLogin, memberPasswordMatches } from './role-pins';
+import { writeSelfMemberId } from './attendance';
+import { canEditMoney, canEditWork, canManageAttendance, canSelfAttend, canViewFees, canViewPii, canViewRevenue } from './permissions';
 
 /** Tab-scoped role + unlock. Never put these in localStorage — that would escalate across tabs. */
 const ROLE_KEY = 'orbit-ops-role';
 const UNLOCK_KEY = 'orbit-ops-role-unlocked';
+/** Also read by sync.ts for Team attendance headers — keep the string in sync. */
+const MEMBER_KEY = 'orbit-ops-member-id';
 const LEGACY_ROLE_KEY = 'orbit-ops-role';
 const listeners = new Set<() => void>();
 
-type Session = { role: Role; unlocked: boolean };
+type Session = { role: Role; unlocked: boolean; memberId: string };
 
 function readStoredRole(): Role {
   if (typeof window === 'undefined') return 'team';
@@ -33,20 +36,30 @@ function readUnlocked(): boolean {
   }
 }
 
+function readMemberId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return sessionStorage.getItem(MEMBER_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
 /** Cached client snapshot — useSyncExternalStore requires Object.is-stable values. */
-let clientSession: Session = { role: 'team', unlocked: false };
+let clientSession: Session = { role: 'team', unlocked: false, memberId: '' };
 
 function readSession(): Session {
   const role = readStoredRole();
   const unlocked = readUnlocked();
-  if (clientSession.role !== role || clientSession.unlocked !== unlocked) {
-    clientSession = { role, unlocked };
+  const memberId = readMemberId();
+  if (clientSession.role !== role || clientSession.unlocked !== unlocked || clientSession.memberId !== memberId) {
+    clientSession = { role, unlocked, memberId };
   }
   return clientSession;
 }
 
 /** Stable server snapshot — a fresh object each call breaks useSyncExternalStore. */
-const SERVER_SESSION: Session = { role: 'team', unlocked: false };
+const SERVER_SESSION: Session = { role: 'team', unlocked: false, memberId: '' };
 
 function writeRole(r: Role) {
   try {
@@ -63,6 +76,13 @@ function writeUnlocked(on: boolean) {
   } catch { /* private mode */ }
 }
 
+function writeMemberId(id: string) {
+  try {
+    if (id) sessionStorage.setItem(MEMBER_KEY, id);
+    else sessionStorage.removeItem(MEMBER_KEY);
+  } catch { /* private mode */ }
+}
+
 function emit() {
   for (const l of listeners) l();
 }
@@ -72,10 +92,18 @@ function subscribe(cb: () => void) {
   return () => { listeners.delete(cb); };
 }
 
-export type UnlockResult = 'ok' | 'wrong-pin' | 'locked' | 'pin-required' | 'set-pin-required';
+export type UnlockResult =
+  | 'ok'
+  | 'wrong-pin'
+  | 'locked'
+  | 'pin-required'
+  | 'set-pin-required'
+  | 'name-required'
+  | 'unknown-name'
+  | 'ambiguous-name';
 
 /**
- * True only when Owner may create the first PIN from the unlock gate.
+ * True only when Owner may create the first PIN from the login form.
  * Never true for Manager/Team — callers must also gate on role === 'owner'.
  * An existing local Owner PIN is never cleared or reset just because remote is empty.
  */
@@ -92,47 +120,55 @@ export function ownerNeedsFirstPin(): boolean {
   return true;
 }
 
+function bindSession(role: Role, memberId: string) {
+  writeRole(role);
+  writeMemberId(memberId);
+  // Owner/Manager: optional shared mark-as preference for attendance UI.
+  // Team: never write shared localStorage — API headers use this tab’s session id only.
+  if (role !== 'team') writeSelfMemberId(memberId);
+  writeUnlocked(true);
+  emit();
+}
+
 /**
- * Unlock a role for this tab. Every role needs its PIN before the view is usable.
- * Leaving a role (Switch Role) clears unlock and locks Owner money.
- * Set-new-PIN is Owner-only first bootstrap — never a default on every switch.
+ * Single-page login: role + first name + password.
+ * First name must match a unique roster person whose MemberRole maps to `next`.
+ * Owner password is the money PIN. Manager/Team use per-member passwordHash or
+ * the legacy role defaults (8423095693 / 246810).
  */
-export async function unlockRole(next: Role, pin: string, pinConfirm?: string): Promise<UnlockResult> {
-  const trimmed = pin.trim();
+export async function unlockWithIdentity(
+  next: Role,
+  firstName: string,
+  password: string,
+  passwordConfirm?: string,
+): Promise<UnlockResult> {
+  const name = firstName.trim();
+  if (!name) return 'name-required';
+  const trimmed = password.trim();
   if (!trimmed) return 'pin-required';
 
-  if (next === 'manager') {
-    if (!(await managerPinMatches(trimmed))) return 'wrong-pin';
+  const data = loadData();
+  const lookup = lookupMemberForLogin(data.team, next, name);
+  if (lookup.status === 'ambiguous') return 'ambiguous-name';
+  if (lookup.status !== 'ok') return 'unknown-name';
+  const member = lookup.member;
+
+  if (next === 'manager' || next === 'team') {
+    if (!(await memberPasswordMatches(member, trimmed, data.settings))) return 'wrong-pin';
     lockOwner();
-    writeRole('manager');
-    writeUnlocked(true);
-    emit();
+    bindSession(next, member.id);
     return 'ok';
   }
 
-  if (next === 'team') {
-    const hash = loadData().settings.teamPinHash;
-    if (!(await teamPinMatches(trimmed, hash))) return 'wrong-pin';
-    lockOwner();
-    writeRole('team');
-    writeUnlocked(true);
-    emit();
-    return 'ok';
-  }
-
-  // Owner — write role before any save so PUT headers declare Owner for first-PIN bootstrap.
-  const settings = loadData().settings;
+  // Owner — money PIN path (separate from per-member hashes).
+  const settings = data.settings;
   const hasPin = !!(settings.ownerPin || settings.ownerPinSet);
 
   if (!hasPin) {
-    // Prefer verifying against the server when connected, so a stale local cache
-    // cannot open a "set new PIN" path that would look like a reset.
-    if (state.remote && pinConfirm === undefined) {
+    if (state.remote && passwordConfirm === undefined) {
       const ok = await unlockOwner(trimmed);
       if (ok === 'ok') {
-        writeRole('owner');
-        writeUnlocked(true);
-        emit();
+        bindSession('owner', member.id);
         return 'ok';
       }
       if (ok === 'locked') return 'locked';
@@ -142,21 +178,20 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
 
     if (!ownerNeedsFirstPin()) return 'wrong-pin';
     if (trimmed.length < 4) return 'pin-required';
-    if (pinConfirm === undefined) return 'set-pin-required';
-    if (pinConfirm.trim() !== trimmed) return 'wrong-pin';
+    if (passwordConfirm === undefined) return 'set-pin-required';
+    if (passwordConfirm.trim() !== trimmed) return 'wrong-pin';
     writeRole('owner');
+    writeMemberId(member.id);
     const { update } = await import('./store');
     update(d => { d.settings.ownerPin = trimmed; }, 'bootstrap');
     if (state.remote) {
       const ok = await unlockOwner(trimmed);
       if (ok === 'locked') return 'locked';
-      if (ok !== 'ok') {
-        // First-PIN PUT may still be in flight; keep the presented PIN in memory.
-        state.ownerPin = trimmed;
-      }
+      if (ok !== 'ok') state.ownerPin = trimmed;
     } else {
       state.ownerPin = trimmed;
     }
+    writeSelfMemberId(member.id);
     writeUnlocked(true);
     emit();
     return 'ok';
@@ -173,48 +208,46 @@ export async function unlockRole(next: Role, pin: string, pinConfirm?: string): 
     return 'pin-required';
   }
 
-  writeRole('owner');
-  writeUnlocked(true);
-  emit();
+  bindSession('owner', member.id);
   return 'ok';
 }
 
-/** Clear the unlocked session and return to the role PIN gate (local-only). */
+/** @deprecated Prefer unlockWithIdentity — kept for any leftover callers. */
+export async function unlockRole(next: Role, pin: string, pinConfirm?: string): Promise<UnlockResult> {
+  // Without a first name this cannot complete the new model.
+  void next; void pin; void pinConfirm;
+  return 'name-required';
+}
+
+/** Clear the unlocked session and return to the single login page (keep access key). */
 export function lockRole() {
   writeUnlocked(false);
+  writeMemberId('');
   lockOwner();
   emit();
 }
 
 /**
- * Return to the primary Sign-in screen (team access-key CloudGate).
- * Used by Switch Role and Switch Account when a remote workspace is configured.
- * Clears the tab unlock and the stored access key. Do not call lockOwner() —
- * it may reconnect with the old key and race.
+ * Leave the workspace entirely: clear unlock + access key → single login page
+ * with the team access key field visible again.
  */
 export function switchAccount() {
   writeUnlocked(false);
+  writeMemberId('');
   state.ownerPin = '';
   forgetAccessKey();
   emit();
 }
 
 /**
- * Switch Role: return to the original main login page.
- * Remote workspace → branded team access-key Sign in (CloudGate).
- * Local-only (no access-key page) → role PIN gate.
+ * Switch Role / log out: return to the same single login page.
+ * Keeps the team access key when present so the form only needs role + name + password.
  */
 export function leaveToLogin() {
-  const mode = cloudMode();
-  const hadKey = typeof window !== 'undefined' && !!localStorage.getItem('orbit-ops-access-key');
-  if (mode === 'remote' || mode === 'locked' || hadKey || state.remote) {
-    switchAccount();
-    return;
-  }
   lockRole();
 }
 
-/** @deprecated Prefer unlockRole — kept for any leftover callers. */
+/** @deprecated Prefer unlockWithIdentity. */
 export type SwitchResult = UnlockResult;
 
 export function switchRole(_next: Role, _pin?: string): SwitchResult {
@@ -227,6 +260,7 @@ export function useRole() {
   return {
     role: session.role,
     unlocked: session.unlocked,
+    memberId: session.unlocked ? session.memberId : '',
     /** Active role only when unlocked; otherwise null. */
     activeRole: role,
     isOwner: session.unlocked && session.role === 'owner',
@@ -237,6 +271,9 @@ export function useRole() {
     canRevenue: session.unlocked && canViewRevenue(session.role),
     canPii: session.unlocked && canViewPii(session.role),
     canFees: session.unlocked && canViewFees(session.role),
+    canManageAttendance: session.unlocked && canManageAttendance(session.role),
+    canSelfAttend: session.unlocked && canSelfAttend(session.role),
+    unlockWithIdentity,
     unlockRole,
     lockRole,
     switchAccount,
@@ -246,9 +283,3 @@ export function useRole() {
 }
 
 export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', manager: 'Manager', team: 'Team' };
-
-export const ROLE_BLURB: Record<Role, string> = {
-  owner: 'Everything, including payments, expenses and revenue',
-  manager: 'Clients, requests, content and tasks — not revenue',
-  team: 'Read-only progress. No contact details or edits.',
-};

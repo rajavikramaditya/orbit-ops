@@ -1,6 +1,7 @@
 import { accessKey, readState, remoteConfigured, writePinGate, writeState, type Row } from '@/lib/db';
 import { emptyDoc, isDoc, mergeDoc, publicDoc, redactPii, withMoney, type Doc, type MoneyMap } from '@/lib/privacy';
 import { hashPin, judgePin, secretsMatch, type PinGate } from '@/lib/pin';
+import { mergeTeamSelfAttendance, type AttendanceEntry } from '@/lib/attendance';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -89,10 +90,8 @@ export async function PUT(req: Request) {
   try { body = await req.json(); } catch { return Response.json({ error: 'invalid' }, { status: 400 }); }
   if (!isDoc(body)) return Response.json({ error: 'invalid' }, { status: 400 });
   const role = deviceRole(req);
-  // Team is read-only. Clients that declare the Team role cannot persist writes.
-  if (role === 'team') {
-    return Response.json({ mode: 'remote' as const, error: 'readonly', owner: false }, { status: 403 });
-  }
+  // Team is read-only for ops data. The only write exception is self check-in / check-out
+  // for today (scoped by x-orbit-member-id). Owner/Manager keep full work writes.
   try {
     const row = await readState();
     const stored = (row?.doc || emptyDoc()) as Doc;
@@ -100,10 +99,33 @@ export async function PUT(req: Request) {
     const presented = presentedPin(req);
     const hadPin = !!row?.pin_hash;
     const gate = gateFor(row, presented);
+
+    if (role === 'team') {
+      const memberId = (req.headers.get('x-orbit-member-id') || '').trim();
+      const teamMembers = Array.isArray(stored.team) ? stored.team as Array<{ id?: string }> : [];
+      if (!memberId || !teamMembers.some(m => m && m.id === memberId)) {
+        return Response.json({ mode: 'remote' as const, error: 'readonly', owner: false }, { status: 403 });
+      }
+      const merge = mergeTeamSelfAttendance(
+        (stored.attendance || []) as AttendanceEntry[],
+        (body.attendance || []) as AttendanceEntry[],
+        memberId,
+      );
+      if (!merge.ok) {
+        return Response.json({ mode: 'remote' as const, error: 'readonly', reason: merge.reason, owner: false }, { status: 403 });
+      }
+      const saved = publicDoc({ ...stored, attendance: merge.attendance }, hadPin);
+      await writeState(saved, storedMoney, row?.pin_hash ?? null, gate.fails, gate.lockedUntil);
+      return Response.json({ mode: 'remote' as const, empty: false, owner: false, paymentsRejected: false, data: forRole(saved, role) });
+    }
+
     // Manager may update work fields, never money. First Owner PIN is Owner-only.
     const pinOk = gate.ok && role !== 'manager';
     const allowFirstPin = role === 'owner';
     const merged = mergeDoc(stored, storedMoney, hadPin, body, pinOk, allowFirstPin);
+    if (!Array.isArray(merged.doc.attendance)) {
+      merged.doc.attendance = Array.isArray(body.attendance) ? body.attendance : (stored.attendance || []);
+    }
     const pinHash = merged.pinChanged && merged.nextPin ? hashPin(merged.nextPin) : (row?.pin_hash ?? null);
     const fails = merged.pinChanged ? 0 : gate.fails;
     const lockedUntil = merged.pinChanged ? null : gate.lockedUntil;

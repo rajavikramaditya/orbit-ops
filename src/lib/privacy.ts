@@ -14,6 +14,8 @@ export type Doc = {
   requests: unknown[];
   content: unknown[];
   team: unknown[];
+  /** Optional for older documents; migrate fills []. */
+  attendance?: unknown[];
   settings: {
     ownerPin?: string;
     ownerPinSet?: boolean;
@@ -32,6 +34,7 @@ export function emptyDoc(): Doc {
     requests: [],
     content: [],
     team: [],
+    attendance: [],
     settings: { companyName: 'Orbit Ops', currency: 'INR', ownerPinSet: false },
   };
 }
@@ -39,7 +42,12 @@ export function emptyDoc(): Doc {
 export function isDoc(value: unknown): value is Doc {
   if (!value || typeof value !== 'object') return false;
   const v = value as Partial<Doc>;
-  return Array.isArray(v.clients) && Array.isArray(v.tasks) && Array.isArray(v.requests) && Array.isArray(v.content) && Array.isArray(v.team);
+  if (!(Array.isArray(v.clients) && Array.isArray(v.tasks) && Array.isArray(v.requests) && Array.isArray(v.content) && Array.isArray(v.team))) {
+    return false;
+  }
+  // Older rows omit attendance; treat missing as empty, reject non-arrays.
+  if (v.attendance !== undefined && !Array.isArray(v.attendance)) return false;
+  return true;
 }
 
 function withoutMoney(client: Doc['clients'][number]) {

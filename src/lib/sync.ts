@@ -6,6 +6,8 @@ import { state } from './store-cache';
 
 const KEY_ACCESS = 'orbit-ops-access-key';
 const PENDING_MONEY = 'orbit-ops-money-pending';
+/** Must match `MEMBER_KEY` in role.tsx — tab-scoped, never localStorage. */
+const SESSION_MEMBER_KEY = 'orbit-ops-member-id';
 
 export type CloudMode = 'unknown' | 'local' | 'locked' | 'remote';
 
@@ -86,6 +88,16 @@ function deviceRole(): string {
   }
 }
 
+/** Tab-scoped member id from the sign-in session (not shared localStorage). */
+function sessionMemberId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return sessionStorage.getItem(SESSION_MEMBER_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
 function headers(pin = state.ownerPin) {
   const h: Record<string, string> = { 'content-type': 'application/json' };
   const key = accessKey();
@@ -93,6 +105,12 @@ function headers(pin = state.ownerPin) {
   if (pin) h['x-owner-pin'] = pin;
   const role = deviceRole();
   if (role === 'owner' || role === 'manager' || role === 'team') h['x-orbit-role'] = role;
+  // Team self check-in/out must use this tab’s signed-in member, not a shared
+  // localStorage value that another Team tab may have overwritten.
+  if (role === 'team') {
+    const memberId = sessionMemberId();
+    if (memberId) h['x-orbit-member-id'] = memberId;
+  }
   return h;
 }
 
@@ -200,9 +218,8 @@ export async function saveAccessKey(key: string) {
 }
 
 /**
- * Drop the team access key and show the primary Sign-in gate (CloudGate).
- * Used by Switch Role / Switch Account so users land on the real access-key
- * login — not the role PIN middle screen and not a blank page.
+ * Drop the team access key and return to the single Sign-in page (CloudGate)
+ * with the access-key field visible again. Used by Switch Account.
  */
 export function forgetAccessKey() {
   localStorage.removeItem(KEY_ACCESS);
@@ -211,8 +228,8 @@ export function forgetAccessKey() {
   cloud.holdPush = false;
   cloud.migrateOffer = false;
   cloud.latest = null;
-  // Force the branded access-key Sign-in immediately. Do not await connectCloud
-  // first — that can flash RoleGate / a blank middle state.
+  // Force the branded Sign-in immediately. Do not await connectCloud first —
+  // that can flash a blank middle state before the login form.
   cloud.mode = 'locked';
   cloud.problem = '';
   emit();
