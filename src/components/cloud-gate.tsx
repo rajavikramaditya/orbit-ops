@@ -123,11 +123,18 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
         }
       }
 
-      // Only Owner first-PIN bootstrap may send a confirm value — and only when
-      // Neon (or local-only mode) still has no Owner password.
+      // Only Owner first-PIN bootstrap may send a confirm value — and only once
+      // the Confirm field has actually been shown (needSet). After connecting
+      // against an unset remote pin, pass undefined so we get set-pin-required
+      // instead of treating an empty password2 as a failed confirm.
       const allowSet = role === 'owner' && ownerNeedsFirstPin();
       if (!allowSet && needSet) setNeedSet(false);
-      const res = await unlockWithIdentity(role, firstName, password, allowSet ? password2 : undefined);
+      const res = await unlockWithIdentity(
+        role,
+        firstName,
+        password,
+        allowSet && needSet ? password2 : undefined,
+      );
       if (res === 'ok') {
         toast(`Signed in as ${ROLE_LABEL[role]}`);
         return;

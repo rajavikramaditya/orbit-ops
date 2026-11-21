@@ -201,24 +201,36 @@ export async function unlockWithIdentity(
       writeRole('owner');
       writeMemberId(member.id);
       update(d => { d.settings.ownerPin = trimmed; }, 'bootstrap');
-      const { migrateBrowser } = await import('./sync');
-      const migrated = await migrateBrowser();
-      if (migrated === 'failed') {
+      const rollbackBootstrap = async () => {
         writeMemberId('');
         update(d => { delete d.settings.ownerPin; }, 'bootstrap');
-        await connectCloud();
+        try { await connectCloud(); } catch { /* keep local rollback even if refresh fails */ }
+      };
+      try {
+        const { migrateBrowser } = await import('./sync');
+        let migrated: 'ok' | 'payments-kept' | 'failed' | 'empty';
+        try {
+          migrated = await migrateBrowser();
+        } catch {
+          // Network throw must not leave a staged local ownerPin / holdPush trap.
+          migrated = 'failed';
+        }
+        if (migrated === 'failed') {
+          await rollbackBootstrap();
+          return 'wrong-pin';
+        }
+        const ok = await unlockOwner(trimmed);
+        if (ok === 'locked') {
+          writeMemberId('');
+          return 'locked';
+        }
+        if (ok !== 'ok') {
+          await rollbackBootstrap();
+          return ownerNeedsFirstPin() ? 'set-pin-required' : 'wrong-pin';
+        }
+      } catch {
+        await rollbackBootstrap();
         return 'wrong-pin';
-      }
-      const ok = await unlockOwner(trimmed);
-      if (ok === 'locked') {
-        writeMemberId('');
-        return 'locked';
-      }
-      if (ok !== 'ok') {
-        writeMemberId('');
-        update(d => { delete d.settings.ownerPin; }, 'bootstrap');
-        await connectCloud();
-        return ownerNeedsFirstPin() ? 'set-pin-required' : 'wrong-pin';
       }
       writeSelfMemberId(member.id);
       writeUnlocked(true);
