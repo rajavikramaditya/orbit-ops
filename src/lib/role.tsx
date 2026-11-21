@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { loadData, type Role } from './store';
 import { state } from './store-cache';
-import { forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
+import { cloudMode, connectCloud, forgetAccessKey, lockOwner, remoteAwaitingFirstSave, unlockOwner } from './sync';
 import { lookupMemberForLogin, memberPasswordMatches } from './role-pins';
 import { writeSelfMemberId } from './attendance';
 import { canEditMoney, canEditWork, canManageAttendance, canSelfAttend, canViewFees, canViewPii, canViewRevenue } from './permissions';
@@ -106,18 +106,25 @@ export type UnlockResult =
  * True only when Owner may create the first PIN from the login form.
  * Never true for Manager/Team — callers must also gate on role === 'owner'.
  * An existing local Owner PIN is never cleared or reset just because remote is empty.
+ *
+ * Must stay false while cloud mode is `locked` / `unknown`: the public login form
+ * does not yet know Neon `pin_hash`, so offering "New Owner password" would let
+ * anyone attempt a bootstrap overwrite against a stale local `ownerPinSet: false`.
  */
 export function ownerNeedsFirstPin(): boolean {
   const s = loadData().settings;
   // Local plaintext PIN or a known-set flag always wins — never offer bootstrap reset.
   if (s.ownerPin || s.ownerPinSet === true) return false;
-  if (state.remote) {
-    if (s.ownerPinSet === false) return true;
-    // Empty remote with no local PIN yet: first Owner may bootstrap once.
-    if (remoteAwaitingFirstSave()) return true;
-    return false;
-  }
-  return true;
+
+  const mode = cloudMode();
+  // Until the team key connects (or we know this deploy is local-only), do not
+  // advertise first-time setup on the anonymous login page.
+  if (mode === 'unknown' || mode === 'locked') return false;
+  if (mode === 'local') return true;
+
+  // Remote connected: only bootstrap when Neon has no pin yet.
+  if (remoteAwaitingFirstSave()) return true;
+  return s.ownerPinSet === false;
 }
 
 function bindSession(role: Role, memberId: string) {
@@ -162,7 +169,7 @@ export async function unlockWithIdentity(
 
   // Owner — money PIN path (separate from per-member hashes).
   const settings = data.settings;
-  const hasPin = !!(settings.ownerPin || settings.ownerPinSet);
+  const hasPin = !!(settings.ownerPin || settings.ownerPinSet === true);
 
   if (!hasPin) {
     if (state.remote && passwordConfirm === undefined) {
@@ -172,6 +179,9 @@ export async function unlockWithIdentity(
         return 'ok';
       }
       if (ok === 'locked') return 'locked';
+      // Refresh public ownerPinSet from Neon before offering first-time setup.
+      // Stale local `ownerPinSet: false` must not reopen bootstrap when pin_hash exists.
+      await connectCloud();
       if (ownerNeedsFirstPin()) return 'set-pin-required';
       return 'wrong-pin';
     }
@@ -180,17 +190,58 @@ export async function unlockWithIdentity(
     if (trimmed.length < 4) return 'pin-required';
     if (passwordConfirm === undefined) return 'set-pin-required';
     if (passwordConfirm.trim() !== trimmed) return 'wrong-pin';
+
+    const { update } = await import('./store');
+    if (state.remote) {
+      // First-PIN bootstrap must hit Neon before we treat the session as Owner.
+      // unlockOwner alone cannot prove a brand-new pin (no pin_hash yet), so we
+      // PUT immediately with x-orbit-role: owner (role set, unlock still off),
+      // then verify with unlockOwner. Never unlock on a failed verify — that let
+      // stale ownerPinSet:false sign anyone in as Owner from the confirm form.
+      writeRole('owner');
+      writeMemberId(member.id);
+      update(d => { d.settings.ownerPin = trimmed; }, 'bootstrap');
+      const rollbackBootstrap = async () => {
+        writeMemberId('');
+        update(d => { delete d.settings.ownerPin; }, 'bootstrap');
+        try { await connectCloud(); } catch { /* keep local rollback even if refresh fails */ }
+      };
+      try {
+        const { migrateBrowser } = await import('./sync');
+        let migrated: 'ok' | 'payments-kept' | 'failed' | 'empty';
+        try {
+          migrated = await migrateBrowser();
+        } catch {
+          // Network throw must not leave a staged local ownerPin / holdPush trap.
+          migrated = 'failed';
+        }
+        if (migrated === 'failed') {
+          await rollbackBootstrap();
+          return 'wrong-pin';
+        }
+        const ok = await unlockOwner(trimmed);
+        if (ok === 'locked') {
+          writeMemberId('');
+          return 'locked';
+        }
+        if (ok !== 'ok') {
+          await rollbackBootstrap();
+          return ownerNeedsFirstPin() ? 'set-pin-required' : 'wrong-pin';
+        }
+      } catch {
+        await rollbackBootstrap();
+        return 'wrong-pin';
+      }
+      writeSelfMemberId(member.id);
+      writeUnlocked(true);
+      emit();
+      return 'ok';
+    }
+
     writeRole('owner');
     writeMemberId(member.id);
-    const { update } = await import('./store');
     update(d => { d.settings.ownerPin = trimmed; }, 'bootstrap');
-    if (state.remote) {
-      const ok = await unlockOwner(trimmed);
-      if (ok === 'locked') return 'locked';
-      if (ok !== 'ok') state.ownerPin = trimmed;
-    } else {
-      state.ownerPin = trimmed;
-    }
+    state.ownerPin = trimmed;
     writeSelfMemberId(member.id);
     writeUnlocked(true);
     emit();

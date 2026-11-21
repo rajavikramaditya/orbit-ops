@@ -80,6 +80,18 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Recompute setup affordance when cloud connects or remote settings arrive.
+  // Never stick needSet=true from a pre-connect Owner click (stale / unknown Neon).
+  useEffect(() => {
+    if (role !== 'owner') {
+      setNeedSet(false);
+      return;
+    }
+    const shouldSet = ownerNeedsFirstPin();
+    setNeedSet(shouldSet);
+    if (!shouldSet) setPassword2('');
+  }, [role, cloud.mode]);
+
   const chooseRole = (r: Role) => {
     setRole(r);
     setError('');
@@ -111,8 +123,18 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
         }
       }
 
-      const allowSet = role === 'owner' && needSet && ownerNeedsFirstPin();
-      const res = await unlockWithIdentity(role, firstName, password, allowSet ? password2 : undefined);
+      // Only Owner first-PIN bootstrap may send a confirm value — and only once
+      // the Confirm field has actually been shown (needSet). After connecting
+      // against an unset remote pin, pass undefined so we get set-pin-required
+      // instead of treating an empty password2 as a failed confirm.
+      const allowSet = role === 'owner' && ownerNeedsFirstPin();
+      if (!allowSet && needSet) setNeedSet(false);
+      const res = await unlockWithIdentity(
+        role,
+        firstName,
+        password,
+        allowSet && needSet ? password2 : undefined,
+      );
       if (res === 'ok') {
         toast(`Signed in as ${ROLE_LABEL[role]}`);
         return;
