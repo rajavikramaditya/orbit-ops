@@ -80,6 +80,18 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Recompute setup affordance when cloud connects or remote settings arrive.
+  // Never stick needSet=true from a pre-connect Owner click (stale / unknown Neon).
+  useEffect(() => {
+    if (role !== 'owner') {
+      setNeedSet(false);
+      return;
+    }
+    const shouldSet = ownerNeedsFirstPin();
+    setNeedSet(shouldSet);
+    if (!shouldSet) setPassword2('');
+  }, [role, cloud.mode]);
+
   const chooseRole = (r: Role) => {
     setRole(r);
     setError('');
@@ -111,7 +123,10 @@ function UnifiedLogin({ needAccessKey }: { needAccessKey: boolean }) {
         }
       }
 
-      const allowSet = role === 'owner' && needSet && ownerNeedsFirstPin();
+      // Only Owner first-PIN bootstrap may send a confirm value — and only when
+      // Neon (or local-only mode) still has no Owner password.
+      const allowSet = role === 'owner' && ownerNeedsFirstPin();
+      if (!allowSet && needSet) setNeedSet(false);
       const res = await unlockWithIdentity(role, firstName, password, allowSet ? password2 : undefined);
       if (res === 'ok') {
         toast(`Signed in as ${ROLE_LABEL[role]}`);

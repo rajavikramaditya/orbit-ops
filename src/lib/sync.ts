@@ -81,8 +81,14 @@ function accessKey() {
 function deviceRole(): string {
   if (typeof window === 'undefined') return '';
   try {
-    if (sessionStorage.getItem('orbit-ops-role-unlocked') !== '1') return '';
-    return sessionStorage.getItem('orbit-ops-role') || '';
+    const r = sessionStorage.getItem('orbit-ops-role');
+    if (r !== 'owner' && r !== 'manager' && r !== 'team') return '';
+    // Unlocked sessions always advertise their role.
+    if (sessionStorage.getItem('orbit-ops-role-unlocked') === '1') return r;
+    // Owner first-PIN bootstrap writes role before unlock so the PUT can set
+    // pin_hash (allowFirstPin). Manager/Team never bootstrap the money PIN.
+    if (r === 'owner') return r;
+    return '';
   } catch {
     return '';
   }
